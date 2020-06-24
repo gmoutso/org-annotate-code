@@ -29,4 +29,3 @@ If one does not want to use a second level in the two-level hierarchy, one could
  - only if the annotated file was changed when the file was not loaded (I think of ~git pull~) or ~annotation-mode~ was not loaded when changes are made, are the annotation positions identified with a nearby search.
 Personally, I use ~annotation-mode~ to comment symbols in code but use ~org-annotation-code~ to describe longer function flows or logic in python.
 
-It might also be possible to use emacs bookmarks to annotate in an org-mode file, but I think the exact annotation positions would not be updated as with ~annotation-mode~.
