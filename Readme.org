@@ -1,0 +1,27 @@
+* Description
+~org-annotate-code~ allows you to annotate files that are stored in a separate annotation org-mode file. The annotations are in a two-level or a three-level hierarchy, according to whether there is a top-level heading set or not. Subsequently, the first level describes the file from which the annotation comes from and the second level describes the relevant section in the file that is annotated. The annotation can be made using a capture template with the function ~org-annotate-code-capture-finding-location~ or with the command ~org-annotate-code-create~.
+
+If you just want to just want to visit the relevant location in the annotation file without creating the levels when they do not exist, then there are two functions: ~org-annotate-code-visit-file~ and ~org-annotate-code-visit-org-file~. The first will only create the first level if it does not exist, the level that describes the file. The second command does not create any levels, not even if a top-level heading is set but does not exist, but will always visit the outer-most level that exists that may be just the annotation file.
+
+* Details
+The top-level heading is set by ~org-annotate-code-heading0~ and is ~nil~ by default. The annotation file is set by ~org-annotation-code-org-file~. How the two-level hierarchy is created can be customized per major-mode of the annotated file.
+
+The two-level hierarchy is created with custom id properties that link back to the annotated file. Once created, the custom id links should not be changed but the two-level headings can be changed as the identification is always by the custom ids. When set, the top-level heading should not change as this level is identified by a fuzzy search on this heading. Finally, a level within the two-level or three-level hierarchy should not be placed outside its structure, as the search to identify the nodes is done incrementally. 
+
+Not only can the two-level headings change, but the whole two-level or three-level hierarchy can be moved and/or demoted somewhere else in the file. The package will always find it as long as the tree ~[higher headings][top-level heading/][first level id][second level id][lower headings]~ is somewhere in the annotation file. This is useful since original headings are automatically inserted in the first creation, but better descriptions or placements might be later decided.
+
+What is inserted as custom id links and original headings is also customizable per major-mode of the annotated file. For ~python-mode~ the first level heading is the file name and the id link is to the file, the second level heading is the name of the function, class or global variable definition at point. The second level id link is a search to the definition in the file. For instance, the second level heading can also be the word or symbol at point and the id link the line number at point. This requires defining a function such as ~org-annotate-code-info-at-point-generic~, which returns the annotation metadata in a plist, and adding the function into the alist ~org-annotate-code-info-alist~ that associates major-modes with such functions.
+
+* Similar Packages
+~org-annotate-code~ is similar to ~org-annotate-file~ but allows more configuration, eg.
+ - The links are in custom id properties instead of the headings and headings can change at will
+ - A function for org-mode capture is provided
+ - One can customize the annotation metadata per major-mode
+ - The level two heading that describes the section in file is meant to be used always by default
+If one does not want to use a second level in the two-level hierarchy, one could restrict to the two functions only: ~org-annotate-code-visit-file~ and ~org-annotate-code-visit-org-file~. The first function always creates the first level if it does not exist and does not consider the second level. The second function never creates any levels, so if the second level does not exist it will not influence its function.
+
+~annotation-mode~ is a useful package that annotates non-destructively files. It does not save the annotations in org-mode, rather they are meant as short text. On the other hand it has some very usefule features, eg.
+ - The annotations are shown in the annotated file
+ - The annotation positions are updated live when text is changed in the annotated file. This is constrasted to this package that identifies annotations with searches or line numbers
+ - Only if the annotated file was changed when the file was not loaded (I think of ~git pull~) or ~annotation-mode~ was not loaded, are the annotation positions identified with a nearby search.
+Personally, I still use ~annotation-mode~ to help me comment symbols in code but use ~org-annotation-code~ to describe longer function flows or logic in python.
