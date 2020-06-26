@@ -45,14 +45,16 @@ It is referenced with a definition search, eg 'def aname' for name 'aname'."
     ))
    (searchname (match-string-no-properties 2))
    (name (match-string-no-properties 1))
+   (filename (buffer-file-name))
    )
-  (list :name name
-    :filename (buffer-file-name)
-    :module (file-name-base (buffer-file-name))
-    :searchname searchname
+  (list
+   :heading2 name
+   :link1 (org-link-make-string (concat "file:" filename))
+   :heading1 (file-name-base filename)
+   :link2 (org-link-make-string (concat "file:" filename "::" searchname))
     )))
 
-(defun org-annotate-code-info-at-point-unknown ()
+(defun org-annotate-code-info-at-point-lineno ()
   "Returns a plist with generic info at point.
 
 The name used is the symbol at point, but it is referenced by its line number only."
@@ -64,10 +66,11 @@ The name used is the symbol at point, but it is referenced by its line number on
 	 (name (if symbol
 		   (format "%s at line %s" symbol lineno)
 		 (format "line %s" lineno))))
-  (list :filename filename
-    :module module
-    :searchname searchname
-    :name name
+    (list
+     :link2 (org-link-make-string (concat "file:" filename))
+     :heading1 module
+     :link2 (org-link-make-string (concat "file:" filename "::" searchname))
+     :heading2 name
   )))
 
 (defun org-annotate-code-predicate-mode-cons (carcon)
@@ -76,7 +79,7 @@ The name used is the symbol at point, but it is referenced by its line number on
 (defun org-annotate-code-choose-info-function ()
   "Return approprate function according to mode. See 'org-annotate-code-info-alist."
     (cond ((cl-some 'org-annotate-code-predicate-mode-cons org-annotate-code-info-alist))
-     (t 'org-annotate-code-info-at-point-unknown)))
+     (t 'org-annotate-code-info-at-point-lineno)))
 
 ;;; Search or create functions
 (defun org-annotate-code-search-or-create-level0 (level &optional create)
@@ -85,7 +88,7 @@ The name used is the symbol at point, but it is referenced by its line number on
 Returns t if it was found or created. Returns nil if not found and not created."
   (condition-case nil
   (let ((org-link-search-must-match-exact-headline t))
-    (org-link-open-from-string (org-make-link-string level))
+    (org-link-open-from-string level)
     t)
   (error
    (when create
@@ -167,46 +170,32 @@ Returns t if it was found or created. Returns nil if not found and not created."
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (org-capture-target-buffer org-file))
 	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :filename))
-	 (name (plist-get plist :name))
-	 (module (plist-get plist :module))
-	 (searchname (plist-get plist :searchname))
-	 (link1 (org-link-make-string (concat "file:" filename)))
-	 (link2 (org-link-make-string (concat "file:" filename "::" searchname)))
+	 (filename (plist-get plist :link1))
+	 (name (plist-get plist :heading2))
+	 (module (plist-get plist :heading1))
+	 (searchname (plist-get plist :link2))
+	 (link1 filename)
+	 (link2 searchname)
 	 )
     (set-buffer the-buffer)
     (org-annotate-code-search-or-create-levels module link1 name link2 heading0)
     ))
 
-;; (defun org-annotate-code-create-in-buffer (the-buffer &optional heading0)
-;;   "Has to be called from the annotated file."
-;;   (let* (;(org-file (or org-file org-annotate-code-org-file))
-;; 	 (heading0 (or heading0 org-annotate-code-heading0))
-;; 	 ;(the-buffer (find-file-noselect org-file))
-;; 	 (plist (funcall (org-annotate-code-choose-info-function)))
-;; 	 (filename (plist-get plist :filename))
-;; 	 (name (plist-get plist :name))
-;; 	 (module (plist-get plist :module))
-;; 	 (searchname (plist-get plist :searchname))
-;; 	 (link1 (org-link-make-string (concat "file:" filename)))
-;; 	 (link2 (org-link-make-string (concat "file:" filename "::" searchname)))
-;; 	 )
-;;     (with-current-buffer the-buffer
-;;     (org-annotate-code-search-or-create-levels module link1 name link2 heading0))))
 
 ;;;###autoload
 (defun org-annotate-code-create (&optional org-file heading0)
   "Has to be called from the annotated file. Creates and visits."
+  (interactive)
   (let* ((org-file (or org-file org-annotate-code-org-file))
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
 	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :filename))
-	 (name (plist-get plist :name))
-	 (module (plist-get plist :module))
-	 (searchname (plist-get plist :searchname))
-	 (link1 (org-link-make-string (concat "file:" filename)))
-	 (link2 (org-link-make-string (concat "file:" filename "::" searchname)))
+	 (filename (plist-get plist :link1))
+	 (name (plist-get plist :heading2))
+	 (module (plist-get plist :heading1))
+	 (searchname (plist-get plist :link2))
+	 (link1 filename)
+	 (link2 searchname)
 	 )
     (switch-to-buffer the-buffer)
     (org-annotate-code-search-or-create-levels module link1 name link2 heading0)))
@@ -218,12 +207,12 @@ Returns t if it was found or created. Returns nil if not found and not created."
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
 	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :filename))
-	 (name (plist-get plist :name))
-	 (module (plist-get plist :module))
-	 (searchname (plist-get plist :searchname))
-	 (link1 (org-link-make-string (concat "file:" filename)))
-	 (link2 (org-link-make-string (concat "file:" filename "::" searchname)))
+	 (filename (plist-get plist :link1))
+	 (name (plist-get plist :heading2))
+	 (module (plist-get plist :heading1))
+	 (searchname (plist-get plist :link2))
+	 (link1 filename)
+	 (link2 searchname)
 	 )
     (switch-to-buffer the-buffer)
     (org-annotate-code-search-or-create-level1 module link1 heading0)))
@@ -238,12 +227,12 @@ It might subsequently stop at the level1 file section, if that subsequently exis
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
 	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :filename))
-	 (name (plist-get plist :name))
-	 (module (plist-get plist :module))
-	 (searchname (plist-get plist :searchname))
-	 (link1 (org-link-make-string (concat "file:" filename)))
-	 (link2 (org-link-make-string (concat "file:" filename "::" searchname)))
+	 (filename (plist-get plist :link1))
+	 (name (plist-get plist :heading2))
+	 (module (plist-get plist :heading1))
+	 (searchname (plist-get plist :link2))
+	 (link1 filename)
+	 (link2 searchname)
 	 )
     (switch-to-buffer the-buffer)
     (org-annotate-code-search-levels module link1 name link2 heading0)))
@@ -252,3 +241,11 @@ It might subsequently stop at the level1 file section, if that subsequently exis
 
 (provide 'org-annotate-code)
 
+;; annotation-mode (gets updated)
+;; (("/home/moutsopoulosg/dev/dotemacs/lisp/org-annotate-code.el" ((8960 8965 "stops is here" "stops")) "a54424ef63923af57d6c9b6a0cd4fff3")
+;; bookmark
+;; (("visits is here"
+;;  (filename . "~/dev/dotemacs/lisp/org-annotate-code.el")
+;;  (front-context-string . "isits org-file i")
+;;  (rear-context-string . "e heading0)\n  \"V")
+;;  (position . 8871))
