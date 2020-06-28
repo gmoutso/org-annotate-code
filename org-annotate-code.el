@@ -21,10 +21,14 @@
   "The org file where annotations are saved."
   :type 'string
   :group 'org-annotate-code)
+(make-variable-buffer-local 'org-annotate-code-org-file)
+
 (defcustom org-annotate-code-heading0 nil
   "The first heading in a three-level hierarchy, or nil for two levels."
   :type 'string
   :group 'org-annotate-code)
+(make-variable-buffer-local 'org-annotate-code-heading0)
+
 (defcustom org-annotate-code-info-alist '((python-mode . org-annotate-code-info-at-point-python))
   "Custom info parsers"
   :group 'org-annotate-code
@@ -48,11 +52,11 @@ It is referenced with a definition search, eg 'def aname' for name 'aname'."
    (filename (buffer-file-name))
    )
   (list
-   :heading2 name
-   :link1 (org-link-make-string (concat "file:" filename))
-   :heading1 (file-name-base filename)
-   :link2 (org-link-make-string (concat "file:" filename "::" searchname))
-    )))
+   (list :id (org-link-make-string (concat "file:" filename))
+	 :heading (file-name-base filename))
+   (list :heading name
+	 :id (org-link-make-string (concat "file:" filename "::" searchname))))
+  ))
 
 (defun org-annotate-code-info-at-point-lineno ()
   "Returns a plist with generic info at point.
@@ -65,13 +69,13 @@ The name used is the symbol at point, but it is referenced by its line number on
 	 (symbol (thing-at-point 'symbol t))
 	 (name (if symbol
 		   (format "%s at line %s" symbol lineno)
-		 (format "line %s" lineno))))
+		   (format "line %s" lineno))))
     (list
-     :link2 (org-link-make-string (concat "file:" filename))
-     :heading1 module
-     :link2 (org-link-make-string (concat "file:" filename "::" searchname))
-     :heading2 name
-  )))
+     (list :id (org-link-make-string (concat "file:" filename))
+	   :heading module)
+     (list :heading name
+	   :id (org-link-make-string (concat "file:" filename "::" searchname))))
+    ))
 
 (defun org-annotate-code-predicate-mode-cons (carcon)
   "Helper function to return cdr if mode is car"
@@ -82,103 +86,162 @@ The name used is the symbol at point, but it is referenced by its line number on
      (t 'org-annotate-code-info-at-point-lineno)))
 
 ;;; Search or create functions
-(defun org-annotate-code-search-or-create-level0 (level &optional create)
-  "Searches for a fuzzy heading and if not found, it can create it.
-
-Returns t if it was found or created. Returns nil if not found and not created."
+(defun org-annotate-code-search-heading (heading)
+  "Searches for heading in (narrowed) buffer. Returns t if found and goes to position"
   (condition-case nil
   (let ((org-link-search-must-match-exact-headline t))
-    (org-link-open-from-string level)
+    (org-link-search heading)
     t)
-  (error
-   (when create
-   (goto-char (point-max))
-   (unless (bolp) (newline))
-   (org-insert-heading nil t t)
-   (insert level "\n")
-   (beginning-of-line 0)
-   t))))
+  (error nil)
+  ))
 
-(defun org-annotate-code-search-or-create-level (heading id &optional create)
-  "Searches for a heading by its custom id and if not found, it can create it.
+(defun org-annotate-code-search-id (id)
+  "Searches for id in (narrowed) buffer. Returns t if found and goes to position"
+  (condition-case nil
+  (progn (org-link-search (concat "#" id)) t)
+  (error nil)
+  ))
+
+(defun org-annotate-code-search-heading-or-id (node)
+  "Search for id if set, otherwise heading, in node. Returns t if found and goes to position."
+  (let ((id (plist-get node :id))
+	(heading (plist-get node :heading)))
+    (if id
+	(org-annotate-code-search-id id)
+      (org-annotate-code-search-heading heading))))
+
+(defun org-annotate-code-search-strict-annotation (annotation)
+  "Searches for nodes of annotation. Hierarchy is strict (unlike reverse search).
+
+Places position at first success and returns non-existing sub-annotation of rest. Returns nil if all are found."
+  (let* ((subannotation annotation)
+	 (first (car subannotation)))
+    (while (and (org-annotate-code-search-heading-or-id first) first)
+      (org-narrow-to-subtree)  ;; to only find subtrees
+      (setq subannotation (cdr subannotation)
+	    first (car subannotation)))
+    subannotation))
+
+(defun org-annotate-code-reverse-search-annotation (annotation)
+  "Searches for nodes of annotation in reverse option. 
+
+Places position at first success and returns non-existing sub-annotation. Returns nil if bottom node is found."
+  (let* ((subannotation)
+	 (reversed (reverse annotation))
+	 (last (car reversed))
+	 (reversed (cdr reversed)))
+    (while (and (not (org-annotate-code-search-heading-or-id last)) last)
+      (setq subannotation (cons last subannotation)
+	    last (car reversed)
+	    reversed (cdr reversed)))
+    subannotation))
+
+(defun org-annotate-code-create-child-node (node)
+  "Creates node as child at point at point."
+  (let ((id (plist-get node :id))
+	(heading (plist-get node :heading))
+	(properties (plist-get node :properties)))
+    (org-insert-subheading '(4))
+    (insert heading)
+    (if id (org-set-property "CUSTOM_ID"  id))
+    (dolist (property properties)
+	     (org-set-property (car property) (cdr property))
+    )))
+
+(defun org-annotate-code-create-sibling-node (node)
+  "Creates node as child at point at point."
+  (let ((id (plist-get node :id))
+	(heading (plist-get node :heading))
+	(properties (plist-get node :properties)))
+    (org-insert-heading '(4))
+    (insert heading)
+    (if id (org-set-property "CUSTOM_ID"  id))
+    (dolist (property properties)
+	     (org-set-property (car property) (cdr property))
+    )))
+
+(defun org-annotate-code-create-toplevel-node (node)
+  "Creates node as toplevel."
+  (let ((id (plist-get node :id))
+	(heading (plist-get node :heading))
+	(properties (plist-get node :properties)))
+    (goto-char (point-max))
+    (unless (bolp) (newline))
+    (insert "* " heading)
+    (beginning-of-line)
+    (if id (org-set-property "CUSTOM_ID"  id))
+    (dolist (property properties)
+	     (org-set-property (car property) (cdr property))
+    )))
+
+(defun org-annotate-code-goto-entry-text()
+  (org-back-to-heading)
+  (org-end-of-meta-data t)
+  (unless (org-at-heading-p) ; we might have moved to the next heading
+    (outline-next-heading))  ; if not, ensure we are at a heading
+  ;; that usually takes us to bol if there were more headings
+  ;; end of metadata might take us to an eol. ditto if no more headings
+  (if (eolp) (newline)  
+    ;; assume at the next heading
+    (beginning-of-line) ; must be true anyway..
+    (newline)  ; note org-capture might remove new lines
+    (previous-line)  ; back to empty space
+  ))
+
+(defun org-annotate-code-create-subannotation (subannotation)
+  "Creates nodes as a subannotation at point. Places position in last."
+  (dolist (node subannotation)
+    (if (org-annotate-code-search-heading-or-id node)
+      (user-error (format "Node exists %s" node)))
+    (org-annotate-code-create-child-node node)
+    ))
+
+(defun org-annotate-code-create-annotation (annotation)
+  "Creates nodes in annotation from top. Places position in last."
+  (let ((toplevel (car annotation))
+	(subannotation (cdr annotation)))
+    (widen)
+    (beginning-of-buffer)
+    (if (org-annotate-code-search-heading-or-id toplevel)
+	(user-error (format "Node exists %s" toplevel)))
+    (org-annotate-code-create-toplevel-node toplevel)
+    (org-annotate-code-create-subannotation subannotation)
+    ))
+
+
+(defun org-annotate-code-search-or-create-child-node (node &optional create)
+  "Searches for a heading by its custom id, or heading if id not set. If not found, it can create it.
 
 Returns t if it was found or created. Returns nil if not found and not created."
-  (condition-case nil
-      (progn (org-link-search (concat "#" id))
-	     t)
-    (error
-     (when create
-     (goto-char (point-min))
-     (org-insert-heading '(4))
-     (insert heading)
-     (org-set-property "CUSTOM_ID"  id)
-     t))))
+  (let (found (org-annotate-code-search-heading-or-id))
+    (if (and (not found) create)
+	(org-annotate-code-create-child-node node))))
 
+(defun org-annotate-code-search-and-create-levels (annotation &optional heading)
+  "Locate or insert org-mode levels. Places point at bottom node.
 
-(defun org-annotate-code-search-or-create-level1 (heading1 link1 &optional heading0)
-  "Locate or insert org-mode heading levels 1. Return position of second level."
-  (widen)
-  (goto-char (point-min))
-  ;; insert heading0 if set
-  (when heading0
-    (org-annotate-code-search-or-create-level0 heading0 t)
-    (org-narrow-to-subtree))
-  ;; insert first
-  (org-annotate-code-search-or-create-level heading1 link1 t)
-  (widen)
-  (point)
-  )
+The current method is to first search bottom-top for ids (or headings if not set). The bottom non-existing nodes are created from the first existing node. This way, subtrees can be moved.
+It also means that the bottom node is the only significant entry when it exists, as the search stops there. Alternative is to use org-annotate-code-search-annotation. TBD."
+(let* ((annotation (if heading (cons (list :heading heading) annotation) annotation))
+	(subannotation (org-annotate-code-reverse-search-annotation annotation)))
+  (if (equal annotation subannotation)
+      (org-annotate-code-create-annotation annotation)
+      (org-annotate-code-create-subannotation subannotation)
+      )
+  (org-annotate-code-goto-entry-text)))
 
-(defun org-annotate-code-search-or-create-levels (heading1 link1 heading2 link2 &optional heading0)
-  "Locate or insert org-mode heading levels 1 and 2. Return position of second level."
-  (org-annotate-code-search-or-create-level1 heading1 link1 heading0)
-  ;; insert second
-  (org-narrow-to-subtree)
-  (org-annotate-code-search-or-create-level heading2 link2 t)
-  (org-demote)
-  (org-narrow-to-subtree)
-  (goto-char (point-max))
-  (unless (bolp) (newline))
-  (widen)
-  (point)
-  )
-
-(defun org-annotate-code-search-levels (heading1 link1 heading2 link2 &optional heading0)
-  "Locate org-mode heading levels 1 and 2. Do not create if non-existing.
-   Stop and return position of outer-most existing level."
-  (widen)
-  (goto-char (point-min))
-  ;; find heading0 if set
-  (when (if heading0
-	    (when (org-annotate-code-search-or-create-level0 heading0 nil)
-	      (org-narrow-to-subtree)
-	      t) ; t if heading0 found
-	  t) ; t if no heading0
-  ;; find first
-  (when (org-annotate-code-search-or-create-level heading1 link1 nil)  ; t if found
-  ;; find second
-  (org-narrow-to-subtree)
-  (org-annotate-code-search-or-create-level heading2 link2 nil))
-  (widen)
-  (point)))
 
 ;;; User interaction
 ;;;###autoload
 (defun org-annotate-code-capture-finding-location (&optional org-file heading0)
   "To be used in capture templates."
-  (let  ((org-file (or org-file org-annotate-code-org-file))
+  (let*  ((org-file (or org-file org-annotate-code-org-file))
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (org-capture-target-buffer org-file))
-	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :link1))
-	 (name (plist-get plist :heading2))
-	 (module (plist-get plist :heading1))
-	 (searchname (plist-get plist :link2))
-	 (link1 filename)
-	 (link2 searchname)
+	 (annotation (funcall (org-annotate-code-choose-info-function)))
 	 )
     (set-buffer the-buffer)
-    (org-annotate-code-search-or-create-levels module link1 name link2 heading0)
+    (org-annotate-code-search-and-create-levels annotation heading0)
     ))
 
 
@@ -189,33 +252,12 @@ Returns t if it was found or created. Returns nil if not found and not created."
   (let* ((org-file (or org-file org-annotate-code-org-file))
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
-	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :link1))
-	 (name (plist-get plist :heading2))
-	 (module (plist-get plist :heading1))
-	 (searchname (plist-get plist :link2))
-	 (link1 filename)
-	 (link2 searchname)
+	 (annotation (funcall (org-annotate-code-choose-info-function)))
 	 )
     (switch-to-buffer the-buffer)
-    (org-annotate-code-search-or-create-levels module link1 name link2 heading0)))
+    (org-annotate-code-search-and-create-levels annotation heading0)
+    ))
 
-;;;###autoload
-(defun org-annotate-code-visit-file (&optional org-file heading0)
-  "Creates and visits level1 file section only."
-  (let* ((org-file (or org-file org-annotate-code-org-file))
-	 (heading0 (or heading0 org-annotate-code-heading0))
-	 (the-buffer (find-file-noselect org-file))
-	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :link1))
-	 (name (plist-get plist :heading2))
-	 (module (plist-get plist :heading1))
-	 (searchname (plist-get plist :link2))
-	 (link1 filename)
-	 (link2 searchname)
-	 )
-    (switch-to-buffer the-buffer)
-    (org-annotate-code-search-or-create-level1 module link1 heading0)))
 
 ;;;###autoload
 (defun org-annotate-code-visit-org-file (&optional org-file heading0)
@@ -226,18 +268,10 @@ It might subsequently stop at the level1 file section, if that subsequently exis
   (let* ((org-file (or org-file org-annotate-code-org-file))
 	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
-	 (plist (funcall (org-annotate-code-choose-info-function)))
-	 (filename (plist-get plist :link1))
-	 (name (plist-get plist :heading2))
-	 (module (plist-get plist :heading1))
-	 (searchname (plist-get plist :link2))
-	 (link1 filename)
-	 (link2 searchname)
+	 (annotation (funcall (org-annotate-code-choose-info-function)))
 	 )
     (switch-to-buffer the-buffer)
-    (org-annotate-code-search-levels module link1 name link2 heading0)))
-
-
+    (org-annotate-code-search-strict-annotation annotation heading0)))
 
 (provide 'org-annotate-code)
 
@@ -249,3 +283,4 @@ It might subsequently stop at the level1 file section, if that subsequently exis
 ;;  (front-context-string . "isits org-file i")
 ;;  (rear-context-string . "e heading0)\n  \"V")
 ;;  (position . 8871))
+
