@@ -34,6 +34,20 @@
   :group 'org-annotate-code
   :type '(alist :key-type symbolp :value-type function))
 
+(defcustom org-annotate-code-search-annotation-method 'org-annotate-code-search-annotation-reverse
+  "Method to search and place annotation. Top-down strict hierarchy or bottom-up loose."
+  :group 'org-annotate-code
+  :type 'function
+  :options '(org-annotate-code-search-annotation-reverse org-annotate-code-search-annotation-strict))
+
+(defun org-annotate-code-add-heading0 (annotation)
+  (if org-annotate-code-heading0 (conds (list :heading org-annotate-code-heading0) annotation) annotation))
+
+(defun org-annotate-code-make-file-link (filename &optional search)
+  (if search
+      (org-link-make-string (concat "file:" filename "::" search))
+      (org-link-make-string (concat "file:" filename)))
+  
 ;;; Info functions
 (defun org-annotate-code-info-at-point-python ()
   "Returns a plist with python info at point. 
@@ -51,12 +65,13 @@ It is referenced with a definition search, eg 'def aname' for name 'aname'."
    (name (match-string-no-properties 1))
    (filename (buffer-file-name))
    )
-  (list
-   (list :id (org-link-make-string (concat "file:" filename))
+  (let ((annotation
+    (list
+   (list :id (org-annotate-code-make-file-link filename)
 	 :heading (file-name-base filename))
    (list :heading name
-	 :id (org-link-make-string (concat "file:" filename "::" searchname))))
-  ))
+	 :id (org-annotate-code-make-file-link filename searchname)))))
+    (org-annotate-code-add-heading0 annotation))))
 
 (defun org-annotate-code-info-at-point-lineno ()
   "Returns a plist with generic info at point.
@@ -69,13 +84,14 @@ The name used is the symbol at point, but it is referenced by its line number on
 	 (symbol (thing-at-point 'symbol t))
 	 (name (if symbol
 		   (format "%s at line %s" symbol lineno)
-		   (format "line %s" lineno))))
+		 (format "line %s" lineno))))
+    (let ((annotation
     (list
-     (list :id (org-link-make-string (concat "file:" filename))
+     (list :id (org-annotate-code-make-file-link filename)
 	   :heading module)
      (list :heading name
-	   :id (org-link-make-string (concat "file:" filename "::" searchname))))
-    ))
+	   :id (org-annotate-code-make-file-link filename searchname)))))
+    (org-annotate-code-add-heading0 annotation))))
 
 (defun org-annotate-code-predicate-mode-cons (carcon)
   "Helper function to return cdr if mode is car"
@@ -110,7 +126,7 @@ The name used is the symbol at point, but it is referenced by its line number on
 	(org-annotate-code-search-id id)
       (org-annotate-code-search-heading heading))))
 
-(defun org-annotate-code-search-strict-annotation (annotation)
+(defun org-annotate-code-search-annotation-strict (annotation)
   "Searches for nodes of annotation. Hierarchy is strict (unlike reverse search).
 
 Places position at first success and returns non-existing sub-annotation of rest. Returns nil if all are found."
@@ -122,7 +138,7 @@ Places position at first success and returns non-existing sub-annotation of rest
 	    first (car subannotation)))
     subannotation))
 
-(defun org-annotate-code-reverse-search-annotation (annotation)
+(defun org-annotate-code-search-annotation-reverse (annotation)
   "Searches for nodes of annotation in reverse option. 
 
 Places position at first success and returns non-existing sub-annotation. Returns nil if bottom node is found."
@@ -223,7 +239,7 @@ Returns t if it was found or created. Returns nil if not found and not created."
 The current method is to first search bottom-top for ids (or headings if not set). The bottom non-existing nodes are created from the first existing node. This way, subtrees can be moved.
 It also means that the bottom node is the only significant entry when it exists, as the search stops there. Alternative is to use org-annotate-code-search-annotation. TBD."
 (let* ((annotation (if heading (cons (list :heading heading) annotation) annotation))
-	(subannotation (org-annotate-code-reverse-search-annotation annotation)))
+	(subannotation (org-annotate-code-search-annotation-method annotation)))
   (if (equal annotation subannotation)
       (org-annotate-code-create-annotation annotation)
       (org-annotate-code-create-subannotation subannotation)
@@ -233,45 +249,42 @@ It also means that the bottom node is the only significant entry when it exists,
 
 ;;; User interaction
 ;;;###autoload
-(defun org-annotate-code-capture-finding-location (&optional org-file heading0)
+(defun org-annotate-code-capture-finding-location (&optional org-file)
   "To be used in capture templates."
   (let*  ((org-file (or org-file org-annotate-code-org-file))
-	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (org-capture-target-buffer org-file))
 	 (annotation (funcall (org-annotate-code-choose-info-function)))
 	 )
     (set-buffer the-buffer)
-    (org-annotate-code-search-and-create-levels annotation heading0)
+    (org-annotate-code-search-and-create-levels annotation)
     ))
 
 
 ;;;###autoload
-(defun org-annotate-code-create (&optional org-file heading0)
+(defun org-annotate-code-create (&optional org-file)
   "Has to be called from the annotated file. Creates and visits."
   (interactive)
   (let* ((org-file (or org-file org-annotate-code-org-file))
-	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
 	 (annotation (funcall (org-annotate-code-choose-info-function)))
 	 )
     (switch-to-buffer the-buffer)
-    (org-annotate-code-search-and-create-levels annotation heading0)
+    (org-annotate-code-search-and-create-levels annotation)
     ))
 
 
 ;;;###autoload
-(defun org-annotate-code-visit-org-file (&optional org-file heading0)
+(defun org-annotate-code-visit-org-file (&optional org-file)
   "Visits org-file in the relevant section of current buffer. It does not create levels.
 
 It stops at the outer-most level that already exists. This might stop at the org-file itself, if the heading0 should exist but does not.  
 It might subsequently stop at the level1 file section, if that subsequently exists but not the level2."
   (let* ((org-file (or org-file org-annotate-code-org-file))
-	 (heading0 (or heading0 org-annotate-code-heading0))
 	 (the-buffer (find-file-noselect org-file))
 	 (annotation (funcall (org-annotate-code-choose-info-function)))
 	 )
     (switch-to-buffer the-buffer)
-    (org-annotate-code-search-strict-annotation annotation heading0)))
+    (org-annotate-code-search-annotation-method annotation)))
 
 (provide 'org-annotate-code)
 
