@@ -23,18 +23,21 @@
   "^\\(?: {%d}\\)"
   "Block level regex format string.")
 (defconst org-annotate-code-def-regex
-  "\\(?:\\(?2:\\(?:def\\|class\\) *\\(?1:[[:alnum:]_]*\\)\\)(\\|\\(?2:\\(?1:[[:alnum:]_]*\\) *=\\)\\)"
+  "\\(?:\\(?2:\\(?:def\\|class\\) *\\(?1:[[:alnum:]_]*\\)\\)(\\)(\\|\\(?:\\(?2:\\(?1:[[:alnum:]_]*\\) *=\\)\\)"
   "Class, def or variable definition regex.")
 (defconst org-annotate-code-function-regex
-  "\\(?:\\(?2:\\(?:def\\|class\\) *\\(?1:[[:alnum:]_]*\\)\\)("
+  "\\(?2:\\(?:def\\|class\\) *\\(?1:[[:alnum:]_]*\\)\\)("
   "Class or def definition.")
 (defconst org-annotate-code-variable-regex
-  "\\(?2:\\(?1:[[:alnum:]_]*\\) *=\\)\\)"
+  "\\(?2:\\(?1:[[:alnum:]_]*\\) *=\\)"
   "Class or def definition.")
 (defconst org-annotate-code-def-regex-name-format
-  "\\(?:\\(?:def\\|class\\) *{%s}\\)(\\|\\(?:{%s} *=\\)"
+  "\\(?:\\(?:def\\|class\\) *%s\\)(\\|\\(?:%s *=\\)"
   "Class, def or variable definition regex.")
-
+(defconst org-annotate-code-link-regex
+  "\\(?:\\(?1:[[:alnum:]_\\./]*\\)::\\)?\\(?2:[[:alnum:]_\\.]*\\)"  ; [^<>\\:;,\\?\"\\*|/]
+  ;; "\\(?:\\(?1:[[^<>:;,\\?\"\\*|/]]*\\)::\\)?\\(?2:[[:alnum:]_\\.]*\\)"  ;  [[:alnum:]_\\./]*
+  "Link regex eg dir/filename.py::a.b.c")
 (defcustom org-annotate-python-squash-candidates-level nil
   "Present candidates up to level. It does not include the heading0.
 
@@ -68,18 +71,19 @@ possibly under a heading0."
 (defun org-annotate-python-get-variable-name ()
   "Return variable defintion at point."
   (save-excursion
-  (let ((beg ((progn (python-nav-beginning-of-statement) (point))))
-	(end ((progn (python-nav-end-of-statement) (point)))))
+  (let ((beg (progn (python-nav-beginning-of-statement) (point)))
+	(end (progn (python-nav-end-of-statement) (point))))
     (goto-char beg)
     (search-forward-regexp org-annotate-code-variable-regex end t)
-    ((match-string-no-properties 1)))))
+    (match-string-no-properties 1))))
 
 (defun org-annotate-python-get-pydef-name ()
   "Return function+variable dotted name in list."
   (let ((funname (org-annotate-python-get-defun-name))
 	(varname (org-annotate-python-get-variable-name)))
-    (if varname (concat funname "." varname)
-      funname)))
+    (cond ((not funname) varname)
+	  ((not varname) funname)
+	  ((concat funname "." varname)))))
 
 (defun org-annotate-python-squash-list-to-level (listnames level)
   "Squash candidates in LISTNAMES up to LEVEL.
@@ -104,16 +108,16 @@ If nil then all. Eg. with level 1, (a b c) becomes (a c)"
 	(setq candidates (cons last candidates)))
       (org-annotate-python-squash-list-to-level (reverse candidates) squash)))  ;squash list of candidates
 
-(defun org-annotate-python-pydef-select-candidate (dotted &optional squash)
+(defun org-annotate-python-pydef-select-candidate (dotted &optional squash)  ; what if dotted is nil!
   (let* ((candidates (org-annotate-python-pydef-make-list-of-candidates dotted squash))
 	(levels (length candidates)))
-    (cond (((equal levels 1) (nth 1 candidates))
-	   ((equal levels 0) nil)
-	   (_ (completing-read "Select pydef: " candidates))))))
+    (cond ((equal levels 1) (first candidates))
+	  ((equal levels 0) nil)
+	  ((completing-read "Select pydef: " candidates)))))
 
 (defun org-annotate-python-pydef-split-filename-searchname (link)
   "Return cons of file and dotted pydef from pydef LINK."
-  (string-match "\\(?:\\(?1:[[:alnum:]_\\.]*\\)::\\)?\\(?2:[[:alnum:]_\\.]*\\)" link)
+  (string-match org-annotate-code-link-regex link)
   (cons (match-string-no-properties 1 link) (match-string-no-properties 2 link)))
 
 (defun org-annotate-python-mapcar-dotted-to-node (filename listdotted)
@@ -134,7 +138,7 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
   (let* ((levels (org-annotate-python-pydef-make-list-of-candidates dotted))  ; this function happens after selection of dotted was made.
 	 (dottedannotation (org-annotate-python-mapcar-dotted-to-node filename levels))
 	 (annotation (org-annotate-python-add-filename-node filename dottedannotation)))
-    (org-annotate-python-squash-list-keep-and-last annotation (1+ squash)))) ; here squash=0 means keeping only filename.
+    (org-annotate-python-squash-list-keep-and-last annotation (when squash (1+ squash))))) ; here squash=0 means keeping only filename.
 
 (defun org-annotate-python-pydef-store-link (&optional nofile)
   "Store a link to a man page."
@@ -165,17 +169,21 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
   (format org-annotate-code-def-regex-name-format name name))
 
 (defun org-annotate-python-goto-dotted (dotted)
-  (let ((names (split-string dotted "."))
+  "Goto DOTTED definition."
+  (let* ((names (split-string dotted "\\."))
 	(beg (point-min))
 	(end (point-max))
 	(name (car names))
 	(last (point)))
     (goto-char beg)
-    (while (search-forward-regexp (org-annotate-python-make-search-string name) end)
-      (setq last (point)
-	    beg (python-nav-beginning-of-defun)
-	    end (python-nav-end-of-defun)
-	    names (cdr names)
+    (while name
+      (search-forward-regexp (org-annotate-python-make-search-string name) end)
+      (setq last (point))
+      (python-nav-beginning-of-defun)
+      (setq beg (point))
+      (python-nav-end-of-defun)
+      (setq end (point))
+      (setq names (cdr names)
 	    name (car names))
       (goto-char beg))
     (goto-char last)))
@@ -190,8 +198,8 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
 (defun org-annotate-code-info-at-point-python ()
   "Return a plist with python info at point."
   (let* ((filename (buffer-file-name))
-	 (dotted (org-annotate-python-get-defun-name))
-	 (selection (org-annotate-python-pydef-select-candidate org-annotate-python-squash-candidates-level)))
+	 (dotted (org-annotate-python-get-pydef-name))
+	 (selection (org-annotate-python-pydef-select-candidate dotted org-annotate-python-squash-candidates-level)))
     (org-annotate-python-make-annotation-from-pydef filename selection org-annotate-python-squash-annotation-level)))
 
 (add-to-list 'org-annotate-code-info-alist (cons 'python-mode 'org-annotate-code-info-at-point-python))
