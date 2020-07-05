@@ -21,8 +21,12 @@
 
 (defun org-annotate-word-get-word  ()
   "Return word at point."
-  (let ((word (substring-no-properties (word-at-point))))
-    word))
+  (let* ((word (word-at-point)))
+    (unless word
+      (cond ((word-search-forward  ".*" nil t) (setq word (word-at-point)))
+	    ((word-search-backward ".*" nil t) (setq word (word-at-point)))
+	    (t (setq word ""))))
+    (substring-no-properties word)))
 
 (defun org-annotate-word-split-filename-lineno-searchname (link)
   "Return list of file::no::word from LINK."
