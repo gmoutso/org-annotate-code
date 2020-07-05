@@ -25,8 +25,8 @@
 
 (defun org-annotate-code-info-at-point-dired ()
   "Return a plist with word info at point."
-  (let* ((filename (org-annotate-dired-get-filename))
-	 (org-annotate-dired-make-annotation-from-filename filename))))
+  (let ((filename (org-annotate-dired-get-filename)))
+    (org-annotate-dired-make-annotation-from-filename filename)))
 
 (add-to-list 'org-annotate-code-info-alist (cons 'dired-mode 'org-annotate-code-info-at-point-dired))
 
