@@ -98,7 +98,7 @@ The first level-1 items appear and the last one.
 If nil then all. Eg. with level 1, (a b c) becomes (a c)"
  (if level (append (seq-take listnames (1- level)) (last listnames)) listnames))
 
-(defun org-annotate-python-pydef-make-list-of-candidates (dotted &optional squash)
+(defun org-annotate-python-make-list-from-dotted (dotted &optional squash)
 "Make cadidates in DOTTED name, eg a.b.c become '(\"a\" \"a.b\" \"a.b.c.\")."
     (let* ((listname (split-string dotted "\\."))
 	   (candidates (list))
@@ -109,7 +109,7 @@ If nil then all. Eg. with level 1, (a b c) becomes (a c)"
       (org-annotate-python-squash-list-to-level (reverse candidates) squash)))  ;squash list of candidates
 
 (defun org-annotate-python-pydef-select-candidate (dotted &optional squash)  ; what if dotted is nil!
-  (let* ((candidates (org-annotate-python-pydef-make-list-of-candidates dotted squash))
+  (let* ((candidates (org-annotate-python-make-list-from-dotted dotted squash))
 	(levels (length candidates)))
     (cond ((equal levels 1) (first candidates))
 	  ((equal levels 0) nil)
@@ -125,17 +125,39 @@ If nil then all. Eg. with level 1, (a b c) becomes (a c)"
 				 :heading dotted))
 	  listdotted))
 
+(defcustom org-annotate-python-add-filename-node-use-projectile t
+  "Use projectile to make relative path in filename heading.")
+(defcustom org-annotate-python-add-filename-node-remove-directory nil
+  "Remove directory in filename heading.")
+(defcustom org-annotate-python-add-filename-node-make-folders-dotted t
+  "Use projectile to make dotted path in filename heading.")
+
 (defun org-annotate-python-add-filename-node (filename annotation)
   "Add the FILENAME as top-level node to ANNOTATION."
-  (let ((filenode (list :id (org-annotate-code-make-file-link filename)
-			:heading (file-name-base filename))))
+  (let* ((filename (expand-file-name filename))
+	 (id (org-annotate-code-make-file-link filename))
+	 (directory (file-name-directory filename))
+	 (heading (file-name-sans-extension filename))
+	 filenode)
+    (if (and org-annotate-python-add-filename-node-use-projectile
+	     (featurep 'projectile)
+	     (not org-annotate-python-add-filename-node-remove-directory)
+	     (projectile-project-root directory))
+	(setq heading (file-relative-name heading (projectile-project-root directory))))
+    (if org-annotate-python-add-filename-node-remove-directory
+	(setq heading (file-name-nondirectory heading)))
+    (if org-annotate-python-add-filename-node-make-dotted
+	(setq heading (replace-regexp-in-string "/" "." heading)))
+    (setq filenode
+	(list :id id
+	      :heading heading))
     (cons filenode annotation)))
 
 (defun org-annotate-python-make-annotation-from-pydef (filename dotted &optional squash)
   "Make annotation from dotted pydef.
 
 Optional squash for final annotation, if nil keep all, if zero keeps only filename, etc."
-  (let* ((levels (org-annotate-python-pydef-make-list-of-candidates dotted))  ; this function happens after selection of dotted was made.
+  (let* ((levels (org-annotate-python-make-list-from-dotted dotted)) ; note selection was made before
 	 (dottedannotation (org-annotate-python-mapcar-dotted-to-node filename levels))
 	 (annotation (org-annotate-python-add-filename-node filename dottedannotation)))
     (org-annotate-python-squash-list-keep-and-last annotation (when squash (1+ squash))))) ; here squash=0 means keeping only filename.
