@@ -4,6 +4,12 @@
 Locally per buffer file you can change in which file the annotations are stored and if there is a top-level heading always inserted. How annotations are formed can also be decided per pajor mode. For example, ~org-annotate-python~ annotates python code definitions (functions, classes or variables). The headlines of these trees can be changed later on, because the annotation itself is identified by its ~CUSTOM_ID~. There is also the possibility to move subtrees and still find the same org-mode item if an annotation is retriggered.  In the annotation file, you can visit the annotated file or the annotated section by ~C-c C-o~ while on the heading of the annotation. 
 
 * Use
+To start using, add the folder where it can be found and load it
+#+begin_src 
+(add-to-list 'load-path "~/path/to/org-annotate-code")
+(require 'org-annotate-code)
+#+end_src
+
 The annotation can be made using a capture template with the function ~org-annotate-code-capture-finding-location~ or with the command ~org-annotate-code-create~. The capture template can look like this
 #+begin_src 
 ("a" "Annotate" plain #'org-annotate-code-capture-finding-location "%?" :empty-lines-before 1)
@@ -11,7 +17,11 @@ The annotation can be made using a capture template with the function ~org-annot
 
 One can customize ~org-annotate-code~ by always having a top-level heading, either globally or per file, by setting ~org-annotate-code-heading0~. Beyond this, typically the top-level heading is the filename. By default the next level is the line number, but one can use an arbitrary hierarchy per mode or locally, see the details.  One can also customize the annotation file locally by setting ~org-annotation-code-org-file~.
 
-There are annotators that may be written for specific modes. In that case loading them will most likely register them to be used with the capture template. Under the hoos, this is done by modifying the alist described in the details. Other annotators might not register like this.
+There are annotators that may be written for specific modes in separate elisp files. For instance, to annotate python files
+#+begin_src 
+(require 'org-annotate-python)
+#+end_src
+The capture mode will then make specific links for python. Under the hood, registering for a major mode is done by modifying an alist as described in the details. Some annotators, like ~org-annotate-index~, will not register with ~org-capture~ like this.
 * Details
 The top-level heading is set by ~org-annotate-code-heading0~ and is ~nil~ by default. The annotation file is set by ~org-annotation-code-org-file~. How the hierarchy is created can be customized by setting ~org-annotate-code-info-override~. The above three can be buffer local. If the override annotator is not set, per mode annotators in ~org-annotate-code-info-alist~ are used with fallback the default in ~org-annotate-code-info-default~.
 
