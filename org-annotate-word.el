@@ -19,9 +19,10 @@
                          :export #'orgorg-annotate-word-export
                          :store #'org-annotate-word-store-link)
 
-(defun org-annotate-word-get-word ()
+(defun org-annotate-word-get-word  ()
   "Return word at point."
-  (word-at-point))
+  (let ((word (substring-no-properties (word-at-point))))
+    word))
 
 (defun org-annotate-word-split-filename-lineno-searchname (link)
   "Return list of file::no::word from LINK."
@@ -42,13 +43,13 @@
 (defun org-annotate-word-make-annotation-from-word (filename lineno word)
   "Make annotation from WORD."
   (let ((annotation (list (list :id (format "[[word:%s::%s::%s]]" filename lineno word)
-				:heading (concat word " near " lineno)))))
+				:heading (format "%s near %s" word lineno)))))
 	(org-annotate-word-add-filename-node filename annotation)))
 
 (defun org-annotate-word-store-link ()
   "Store a link."
   (let* ((filename (expand-file-name (buffer-file-name)))
-	 (word (org-annotate-word-get-name))
+	 (word (org-annotate-word-get-word))
 	 (lineno (line-number-at-pos))
 	 (description nil))
       (org-link-store-props
@@ -99,8 +100,8 @@
   "Return a plist with word info at point."
   (let* ((filename (buffer-file-name))
 	 (lineno (line-number-at-pos))
-	 (word (org-annotate-word-get-name))
-	 (org-annotate-word-make-annotation-from-word filename lineno word))))
+	 (word (org-annotate-word-get-word)))
+	 (org-annotate-word-make-annotation-from-word filename lineno word)))
 
 (provide 'org-annotate-word)
 ;;; org-annotate-word.el ends here
