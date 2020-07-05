@@ -41,7 +41,7 @@ It is possible to use relative links using projectile. It is also possible to ma
 ** org-annotate-dired
 Allows to annotate the file at point in dired. The annotations will still be in ~org-annotate-code-org-file~ and under the top-level heading if set.
 ** org-annotate-word
-This creates a link like ~[[word:filename::lineno::word]]~ that searches for the word near a line number in a file. This annotator will not update the line numbers if the text is changes, whether by editing or when the file or package was not loaded (think git). See [[https://github.com/bastibe/annotate.el][annotation-mode]], another package, for live changing the line numbers as text is edited.
+This creates a link like ~[[word:filename::lineno::word]]~ that searches for the word near a line number in a file. This annotator will not update the line numbers if the text is changes, whether by editing or when the file or package was not loaded (think git). I am currently looking at solving this. In the meantime checkout [[https://github.com/bastibe/annotate.el][annotation-mode]], another package, for live changing the line numbers as text is edited.
 ** org-annotate-index
 Allows adding the file name, either the current buffer or the file pointed at in dired, in an ~index.org~ file in the /same/ directory as the file. This does not register an annotator with the ~org-annotate-code-info-alist~. One would add ~org-annotate-index-capture-finding-location~ in a sepratate capure template, as in
 #+begin_src 
