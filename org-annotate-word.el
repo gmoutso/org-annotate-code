@@ -26,8 +26,8 @@
 
 (defun org-annotate-word-split-filename-lineno-searchname (link)
   "Return list of file::no::word from LINK."
-  (string-match "\\(?1:[^:]*\\)::\\(?2:[^:]\\)::\\(?3:[^:]\\)" link)
-  (list (match-string-no-properties 1 link) (match-string-no-properties 2 link) (match-string-no-properties 3 link)))
+  (string-match "\\(?1:[-[:alnum:]_\\./]*\\)::\\(?2:[0-9]*\\)::\\(?3:[-[:alnum:]_\\./]*\\)" link)
+  (list (match-string-no-properties 1 link) (string-to-number (match-string-no-properties 2 link)) (match-string-no-properties 3 link)))
 
 (defun org-annotate-word-add-filename-node (filename annotation)
   "Add the FILENAME as top-level node to ANNOTATION."
@@ -90,9 +90,9 @@
 
 (defun org-annotate-word-search (link)
   (let* ((splitlink (org-annotate-word-split-filename-lineno-searchname link))
-	 (filename (nth 1 splitlink))
-	 (lineno (nth 2 splitlink))
-	 (word (nth 3 splitlink)))
+	 (filename (nth 0 splitlink))
+	 (lineno (nth 1 splitlink))
+	 (word (nth 2 splitlink)))
     (if filename (find-file filename))
     (org-annotate-word-goto-word lineno word)))
 
