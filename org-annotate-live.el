@@ -34,7 +34,7 @@
 (defun org-annotate-live-replace-ids-in-orgfile (oldid newid)
   "Modify ids in orgfile."
   (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
-    (if (org-annotate-code-search-id id)
+    (if (org-annotate-code-search-id oldid)
     (org-set-property "CUSTOM_ID" newid))))
 
 ;; registering
@@ -78,9 +78,10 @@ If MARKER-OR-POSITION was registered, the old link is discarded."
 
 ;; correcting
 
-(defun org-annotate-live-correct-link-at-marker (marker-or-position)
+(defun org-annotate-live-correct-register-link-at-marker (marker-or-position)
   "Correct link that is registered by marker. 
 The type of link is guessed from the old link.
+The new link is taken from `org-store-link'.
 Return the cons of replacement."
   (save-excursion
     (goto-char marker-or-position)
@@ -94,27 +95,36 @@ Return the cons of replacement."
 	(org-annotate-live-update-link-at-marker newlink marker-or-position)
 	(cons oldlink newlink)))))
 
-(defun org-annotate-live-correct-before-register-new-marker-link (marker-or-position link)
+(defun org-annotate-live-correct-register-before-new-marker-link (marker-or-position link  markers-alist stale-list)
   "Update link at marker in registers and org-file.
 Assume LINK is correct at MARKER-OR-POSITION. 
-Then register might be out of sync."
+However the register might be out of sync:
+1) the MARKER-OR-POSITION is registered to a different link that should be corrected
+2) the same LINK is registered at another marker that should be corrected
+3) the same link is a stale link that has to be deactivated."
   (let* ((marker (copy-marker marker-or-position t))
 	 (existinglink (org-annotate-live-get-link-at-marker-or-position marker-or-position))
 	 (existingmarker (org-annotate-live-get-marker-of-link link))
-	 (existingstale (org-annotate-live-link-is-stale link)))
+	 (existingstale (org-annotate-live-link-is-stale link))
+	 correctlink)
+    (setq correctlink
     (cond ((and (not (equal marker existingmarker)) (equal link existinglink))
-	   ;; link at existingmarker is wrong
-	   (org-annotate-live-add-or-update-link-at-marker existingmarker))
-	   ;; returns cons of oldlink newlink
+	   ;; same link at other existingmarker is wrong (2)
+	   (org-annotate-live-correct-register-link-at-marker existingmarker markers-alist))
 	   ((and (equal marker existingmarker) (not (equal link existinglink)))
 	   ;; existinglink should be updated to link
-	   (org-annotate-live-add-or-update-link-at-marker existingmarker))
+	    (org-annotate-live-update-link-at-marker link existingmarker markers-alist)
+	    (cons existinglink link))
 	   ;; returns cons of oldlink newlink
 	   (existingstale
 	    ;; link in stale links must be corrected
-	    (org-annotate-live-correct-and-register-stale link))
-	   ;; returns cons of oldlink newlink
-	   )))
+	    (org-annotate-live-correct-and-register-stale link stale-list))))
+    (if correctlink
+	(org-annotate-live-replace-ids-in-orgfile (car correctlink) (cdr correctlink)))))
+
+(defun org-annotate-live-correct-and-register-stale (link stale-list)
+  (add-to-list 'stale-list (concat "Deactivated" link))
+  (cons link (concat "Deactivated" link)))
 
 ;; accessing
 
@@ -133,45 +143,6 @@ Then register might be out of sync."
   (let ((found (rassoc link (symbol-value markers-alist))))
     (if found (car found))))
 
-;; (defun org-annotate-code-parse-link-from-string (link)
-;;   "Parse LINK string."
-;;   (string-match "\\(?1:[[:alnum:]]*\\):\\(?2:[^]]*\\)" link)
-;;   (let ((type (match-string-no-properties 1 link))
-;; 	(rawlink (match-string-no-properties 2 link)))
-;;   (list :type type :link rawlink)))
-
-;; (defun org-annotate-code-parse-link-from-string-maybe (link)
-;;   "Parse LINK string, unless it is parsed."
-;;   (cond ((stringp link) (org-annotate-code-parse-link-from-string link))
-;; 	(t link)))
-
-;; (defun org-annotate-live-test-links (a b)
-;;   "Test two parsed links A and B."
-;;   (equal (plist-get a :link) (plist-get b :link)))
-
-;; (defun org-annotate-live-updated-list-of-links (link links &optional test)
-;;   "Return new list of LINKS with LINK added or updated according to TEST."
-;;   (let ((link (org-annotate-code-parse-link-from-string-maybe link))
-;; 	(test (or test 'org-annotate-live-test-links)))
-;; 	  (if (not (seq-contains links link test))
-;; 		 (cons link links)
-;; 	    (substitute-if link (lambda (i) (funcall test i link)) links))))
-
-;; (defun org-annotate-live-add-or-update-link-at-marker (link &optional marker test)
-;;   "Update the markers-alist of markers with a LINK at the MARKER. Use test to know whether to add or replace."
-;;   (setq marker (if marker (copy-marker marker)
-;; 		 (point-marker)))
-;;   (set-marker-insertion-type marker t)
-;;   (let* ((link (org-annotate-code-parse-link-from-string-maybe link))
-;; 	 (links (alist-get marker org-annotate-live-markers-alist nil nil 'equal)))
-;;     (when links ; exist
-;;       (setf (alist-get marker org-annotate-live-markers-alist nil nil 'equal)
-;; 	      (org-annotate-live-updated-list-of-links link links test))
-;;       (set-marker marker nil))
-;;     (when (not links)
-;;       (add-to-list 'org-annotate-live-markers-alist (cons marker (list link))))
-;;     (if links (message "links at marker updated")
-;;       (message "new marker with link added"))))
 
 (provide 'org-annotate-live)
 ;;; org-annotate-live.el ends here
