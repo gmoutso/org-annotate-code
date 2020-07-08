@@ -272,6 +272,7 @@ It does not create levels.
 
 It stops at the outer-most level that already exists.
 This might stop at the ORG-FILE."
+  (interactive)
   (let* ((org-file (or org-file org-annotate-code-org-file))
 	 (the-buffer (find-file-noselect org-file))
 	 (annotation (funcall (org-annotate-code-choose-info-function)))
@@ -279,5 +280,26 @@ This might stop at the ORG-FILE."
     (switch-to-buffer the-buffer)
     (funcall org-annotate-code-search-annotation-method annotation)))
 
+(defun org-annotate-code-parse-link-from-string (s)
+  "Return plist by parsing string S. 
+
+See eg `org-open-link-from-string'. 
+Useful properties are :type and :raw-link.
+"
+  (with-temp-buffer
+	   (let ((org-inhibit-startup nil))
+	     (insert s)
+	     (org-mode)
+	     (goto-char (point-min))
+	     (cdr (org-element-link-parser)))))
+
+(defun org-annotate-code-get-link-type (link)
+  "Get type of link"
+  (if (string-match "\\(?1:[[:alnum:]]*\\):.*" link)
+  (match-string-no-properties 1 link)))
+
+
+
 (provide 'org-annotate-code)
 ;;; org-annotate-code.el ends here
+
