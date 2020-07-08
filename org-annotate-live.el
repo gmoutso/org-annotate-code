@@ -21,55 +21,62 @@
 ;;   "List of stale links.")
 ;; (make-variable-buffer-local 'org-annotate-live-stale-links)
 
-(defun org-annotate-live-get-link-ids-from-orgfile (orgfile type)
-  "Get all id links from orgfile if the org-elements pass the TEST."
-  (let ((test (cond ((stringp test-or-type)
-		     (org-annotate-code-link-test-type-factory test-or-type))
-		    (t type))))
-    (with-current-buffer (find-file-noselect orgfile)  ; see also insert-file-contents
-	(org-element-map (org-element-parse-buffer 'headline) 'headline
+;; on org-file
+
+(defun org-annotate-live-get-link-ids-from-orgfile (test)
+  "Get all id links from org file if the org-elements pass the TEST."
+  (let ((tree (with-current-buffer (find-file-noselect org-annotate-code-org-file)
+		(org-element-parse-buffer 'headline))))
+	(org-element-map tree 'headline
 	  (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
-				(if (funcall test id) id)))))))
+				(if (funcall test id) id))))))
 
-(defun org-annotate-live-replace-ids-in-orgfile (orgfile oldid newid)
+(defun org-annotate-live-replace-ids-in-orgfile (oldid newid)
   "Modify ids in orgfile."
-  (with-current-buffer (find-file-noselect orgfile)  ; see also insert-file-contents
-    (org-map-entries (lambda () (org-set-property "CUSTOM_ID" newid)) (concat "+CUSTOM_ID=\"" oldid "\""))))
+  (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
+    (if (org-annotate-code-search-id id)
+    (org-set-property "CUSTOM_ID" newid))))
 
-(defun org-annotate-live-register-link (test link)
+;; registering
+
+(defun org-annotate-live-register-link (test link markers-alist stale-links-symbol)
   "Register LINK with marker or stale.
 The TEST must go to the point or return nil.
 Here markers are created from points."
-  (if (test link)
-      (org-annotate-live-add-or-update-link-at-marker link (point))
-    (add-to-list 'org-annotate-live-stale-links link)))
+  (if (funcall test link)
+      (org-annotate-live-add-or-update-link-at-marker link (point) markers-alist)
+    (add-to-list stale-links-symbol link)))
 
-(defun org-annotate-live-register-links (test links)
+(defun org-annotate-live-register-links (test links markers-alist stale-links-symbol)
   "Register live links with markers and stale links for the first time.
 LINKS are a list of links. 
 The TEST must go to the point or return nil.
 Here markers are created from points."
   (dolist (link links)
-    (org-annotate-live-register-link test link)))
+    (org-annotate-live-register-link test link markers-alist stale-links-symbol)))
 
-(defun org-annotate-live-add-link-at-marker (link marker-or-position)
+;; adding to register
+
+(defun org-annotate-live-add-link-at-marker (link marker-or-position markers-alist)
   "Add LINK at MARKER-OR-POINT even if marker is registered. 
 A new marker is created."
   (setq marker (copy-marker marker-or-position t))
-  (set-alist 'org-annotate-live-markers-alist marker link))
+  (set-alist markers-alist marker link))
 
-(defun org-annotate-live-update-link-at-marker (link marker-or-position)
+(defun org-annotate-live-update-link-at-marker (link marker-or-position markers-alist)
   "Update LINK at MARKER-OR-POINT when marker is registered."
   (let ((marker (copy-marker marker-or-position t)))
-	(setf (alist-get marker org-annotate-live-markers-alist nil nil 'equal) link)))
+	(setf (alist-get marker (symbol-value markers-alist) nil nil 'equal) link)))
 
-(defun org-annotate-live-add-or-update-link-at-marker (link marker-or-position)
+(defun org-annotate-live-add-or-update-link-at-marker (link marker-or-position markers-alist)
   "Update or add LINK at MARKER-OR-POINT. 
 A marker is created if the MARKER-OR-POSITION was not registered. 
 If MARKER-OR-POSITION was registered, the old link is discarded."
-  (if (org-annotate-live-get-link-at-marker-or-position marker-or-position)
-      (org-annotate-live-update-link-at-marker link marker-or-position)
-      (org-annotate-live-add-link-at-marker link marker-or-position)))
+  (if (org-annotate-live-get-link-at-marker-or-position marker-or-position markers-alist)
+      (org-annotate-live-update-link-at-marker link marker-or-position markers-alist)
+      (org-annotate-live-add-link-at-marker link marker-or-position markers-alist)))
+
+;; correcting
 
 (defun org-annotate-live-correct-link-at-marker (marker-or-position)
   "Correct link that is registered by marker. 
@@ -109,19 +116,21 @@ Then register might be out of sync."
 	   ;; returns cons of oldlink newlink
 	   )))
 
-(defun org-annotate-live-link-is-stale (link)
-  "Return true if link is stale"
-  (member link 'org-annotate-live-stale-links))
+;; accessing
 
-(defun org-annotate-live-get-link-at-marker-or-position (marker-or-position)
+(defun org-annotate-live-link-is-stale (link stale-links-symbol)
+  "Return true if link is stale"
+  (member link stale-links-symbol))
+
+(defun org-annotate-live-get-link-at-marker-or-position (marker-or-position markers-alist)
   "Get link at marker if link registered."
   (let* ((marker (copy-marker marker-or-position t))
-	 (found (assoc marker org-annotate-live-markers-alist)))
+	 (found (assoc marker (symbol-value markers-alist))))
     (if found (cdr found))))
 
-(defun org-annotate-live-get-marker-of-link (link)
+(defun org-annotate-live-get-marker-of-link (link markers-alist)
   "Get marker if link is registered."
-  (let ((found (rassoc link 'org-annotate-live-markers-alist)))
+  (let ((found (rassoc link (symbol-value markers-alist))))
     (if found (car found))))
 
 ;; (defun org-annotate-code-parse-link-from-string (link)
@@ -149,7 +158,7 @@ Then register might be out of sync."
 ;; 	    (substitute-if link (lambda (i) (funcall test i link)) links))))
 
 ;; (defun org-annotate-live-add-or-update-link-at-marker (link &optional marker test)
-;;   "Update the alist of markers with a LINK at the MARKER. Use test to know whether to add or replace."
+;;   "Update the markers-alist of markers with a LINK at the MARKER. Use test to know whether to add or replace."
 ;;   (setq marker (if marker (copy-marker marker)
 ;; 		 (point-marker)))
 ;;   (set-marker-insertion-type marker t)
