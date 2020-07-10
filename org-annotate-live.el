@@ -13,134 +13,141 @@
 ;;; Code:
 (require 'org-annotate-code)
 
-;; (defvar org-annotate-live-markers-alist nil
-;;   "Alist of markers to links. Links are stored like org-store-link.")
-;; (make-variable-buffer-local 'org-annotate-live-markers-alist)
-
-;; (defvar org-annotate-live-stale-links nil
-;;   "List of stale links.")
-;; (make-variable-buffer-local 'org-annotate-live-stale-links)
+(defvar org-annotate-live-markers-alist nil
+  "Alist of type to alist of markers to links. Links are stored like org-store-link.")
+(make-variable-buffer-local 'org-annotate-live-markers-alist)
 
 ;; on org-file
+(defun org-annotate-live-get-filename-from-link (link)
+  (if (string-match "\\(?1:[-[:alnum:]_\\./]*\\)::.*" link)
+      (expand-file-name (match-string-no-properties 1 link))))
 
-(defun org-annotate-live-get-link-ids-from-orgfile (test)
-  "Get all id links from org file if the org-elements pass the TEST."
-  (let ((tree (with-current-buffer (find-file-noselect org-annotate-code-org-file)
+(defun org-annotate-live-get-link-ids-from-orgfile (type)
+  "Get all id links of TYPE from org file that point to file."
+  (let ((this_file (expand-file-name (buffer-file-name)))
+	(tree (with-current-buffer (find-file-noselect org-annotate-code-org-file)
 		(org-element-parse-buffer 'headline))))
 	(org-element-map tree 'headline
 	  (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
-				(if (funcall test id) id))))))
+				(if (and (equal type (org-annotate-code-get-link-type id))
+					 (equal this_file
+						(org-annotate-live-get-filename-from-link id)))
+				    id))))))
 
-(defun org-annotate-live-replace-ids-in-orgfile (oldid newid)
+(defun org-annotate-live-replace-org-id (oldid newid)
   "Modify ids in orgfile."
   (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
     (if (org-annotate-code-search-id oldid)
     (org-set-property "CUSTOM_ID" newid))))
 
+(defun org-annotate-live-make-stale-org-id (id)
+  "Modify id to stale_link property in orgfile."
+  (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
+    (when (org-annotate-code-search-id id)
+      (org-delete-property "CUSTOM_ID")
+      (org-set-property "STALE_LINK" id))))
+
 ;; registering
 
-(defun org-annotate-live-register-link (test link markers-alist stale-links-symbol)
-  "Register LINK with marker or stale.
-The TEST must go to the point or return nil.
-Here markers are created from points."
-  (if (funcall test link)
-      (org-annotate-live-add-or-update-link-at-marker link (point) markers-alist)
-    (add-to-list stale-links-symbol link)))
+(defun org-annotate-live-register-link (link &optional test)
+  "Register LINK with marker or stale."
+  (save-excursion 
+    (let* ((type (org-annotate-code-get-link-type link))
+	   (test (or test (org-link-get-parameter type :followstrict))))
+      (if (funcall test link)
+	  (org-annotate-live-add-or-update-link-at-marker link (point))
+	(org-annotate-live-make-stale-org-id link)))))
 
-(defun org-annotate-live-register-links (test links markers-alist stale-links-symbol)
-  "Register live links with markers and stale links for the first time.
-LINKS are a list of links. 
-The TEST must go to the point or return nil.
-Here markers are created from points."
-  (dolist (link links)
-    (org-annotate-live-register-link test link markers-alist stale-links-symbol)))
+(defun org-annotate-live-register-links (type)
+  "Register all links to current buffer of TYPE."
+  (let ((links (org-annotate-live-get-link-ids-from-orgfile type)))
+    (mapcar org-annotate-live-register-link links)))
 
 ;; adding to register
 
-(defun org-annotate-live-add-link-at-marker (link marker-or-position markers-alist)
+(defun org-annotate-live-add-link-at-marker (link)
   "Add LINK at MARKER-OR-POINT even if marker is registered. 
 A new marker is created."
   (setq marker (copy-marker marker-or-position t))
-  (set-alist markers-alist marker link))
+  (set-alist org-annotate-live-markers-alist marker link))
 
-(defun org-annotate-live-update-link-at-marker (link marker-or-position markers-alist)
+(defun org-annotate-live-update-link-at-marker (link marker-or-position)
   "Update LINK at MARKER-OR-POINT when marker is registered."
   (let ((marker (copy-marker marker-or-position t)))
-	(setf (alist-get marker (symbol-value markers-alist) nil nil 'equal) link)))
+	(setf (alist-get marker (symbol-value org-annotate-live-markers-alist) nil nil 'equal) link)))
 
-(defun org-annotate-live-add-or-update-link-at-marker (link marker-or-position markers-alist)
+(defun org-annotate-live-add-or-update-link-at-marker (link marker-or-position)
   "Update or add LINK at MARKER-OR-POINT. 
 A marker is created if the MARKER-OR-POSITION was not registered. 
 If MARKER-OR-POSITION was registered, the old link is discarded."
-  (if (org-annotate-live-get-link-at-marker-or-position marker-or-position markers-alist)
-      (org-annotate-live-update-link-at-marker link marker-or-position markers-alist)
-      (org-annotate-live-add-link-at-marker link marker-or-position markers-alist)))
+  (if (org-annotate-live-get-link-at-marker-or-position marker-or-position)
+      (org-annotate-live-update-link-at-marker link marker-or-position)
+      (org-annotate-live-add-link-at-marker link marker-or-position)))
 
 ;; correcting
 
-(defun org-annotate-live-correct-register-link-at-marker (marker-or-position)
-  "Correct link that is registered by marker. 
-The type of link is guessed from the old link.
-The new link is taken from `org-store-link'.
-Return the cons of replacement."
+(defun org-annotate-live-guess-link-from-point-and-link-copy (marker-or-position link-copy)
+  "Get the new link at MARKER-OR-POISITION from the same type as LINK-COPY."
   (save-excursion
     (goto-char marker-or-position)
+  (let* ((type (org-annotate-code-get-link-type link-copy))
+	 (store (org-link-get-parameter type :store))
+	 (plist (funcall store))
+	 (rawlink (plist-get plist :link)))
+    (org-link-make-string (concat type ":" rawlink)))))
+
+(defun org-annotate-live-correct-register-link-at-marker (marker-or-position)
+  "Correct link that is registered at MARKER-OR-POSITION. 
+The type of link is guessed from the old link.
+The new link is taken from `org-store-link' at the MARKER-OR-POSITION.
+Return the cons of replacement."
     (let* ((oldlink (org-annotate-live-get-link-at-marker-or-position marker-or-position))
-	   (type (org-annotate-code-get-link-type oldlink))
-	   (store (org-link-get-parameter type :store))
-	   (plist (funcall store))
-	   (rawlink (plist-get plist :link))
-	   (newlink (org-link-make-string (concat type ":" rawlink))))
+	   (newlink (org-annotate-live-guess-link-from-point-and-link-copy marker-or-position)))
       (when (not (equal oldlink newlink))
 	(org-annotate-live-update-link-at-marker newlink marker-or-position)
-	(cons oldlink newlink)))))
+	(cons oldlink newlink))))
 
-(defun org-annotate-live-correct-register-before-new-marker-link (marker-or-position link  markers-alist stale-list)
+
+(defun org-annotate-live-correct-register-before-new-marker-link (marker-or-position link)
   "Update link at marker in registers and org-file.
+
 Assume LINK is correct at MARKER-OR-POSITION. 
 However the register might be out of sync:
-1) the MARKER-OR-POSITION is registered to a different link that should be corrected
-2) the same LINK is registered at another marker that should be corrected
-3) the same link is a stale link that has to be deactivated."
+1) the MARKER-OR-POSITION is registered to a different link that should be corrected.
+The correct link is already provided as LINK.
+2) the same LINK is registered at another marker that should be corrected.
+The correct link can be guess from calling the store function at the other marker.
+3) the same link is a stale link that has to be deactivated.
+The stale link and its marker can only be guessed with the input of the user.
+"
   (let* ((marker (copy-marker marker-or-position t))
 	 (existinglink (org-annotate-live-get-link-at-marker-or-position marker-or-position))
 	 (existingmarker (org-annotate-live-get-marker-of-link link))
-	 (existingstale (org-annotate-live-link-is-stale link))
 	 correctlink)
     (setq correctlink
     (cond ((and (not (equal marker existingmarker)) (equal link existinglink))
 	   ;; same link at other existingmarker is wrong (2)
-	   (org-annotate-live-correct-register-link-at-marker existingmarker markers-alist))
+	   (org-annotate-live-correct-register-link-at-marker existingmarker))
 	   ((and (equal marker existingmarker) (not (equal link existinglink)))
-	   ;; existinglink should be updated to link
-	    (org-annotate-live-update-link-at-marker link existingmarker markers-alist)
+	   ;; existinglink should be updated to link (1)
+	    (org-annotate-live-update-link-at-marker link existingmarker)
 	    (cons existinglink link))
 	   ;; returns cons of oldlink newlink
-	   (existingstale
-	    ;; link in stale links must be corrected
-	    (org-annotate-live-correct-and-register-stale link stale-list))))
+	   ))
     (if correctlink
-	(org-annotate-live-replace-ids-in-orgfile (car correctlink) (cdr correctlink)))))
-
-(defun org-annotate-live-correct-and-register-stale (link stale-list)
-  (add-to-list 'stale-list (concat "Deactivated" link))
-  (cons link (concat "Deactivated" link)))
+	(org-annotate-live-replace-org-id (car correctlink) (cdr correctlink)))))
 
 ;; accessing
 
-(defun org-annotate-live-link-is-stale (link stale-links-symbol)
-  "Return true if link is stale"
-  (member link stale-links-symbol))
-
-(defun org-annotate-live-get-link-at-marker-or-position (marker-or-position markers-alist)
+(defun org-annotate-live-get-link-at-marker-or-position (marker-or-position)
   "Get link at marker if link registered."
   (let* ((marker (copy-marker marker-or-position t))
-	 (found (assoc marker (symbol-value markers-alist))))
+	 (found (assoc marker (symbol-value org-annotate-live-markers-alist))))
     (if found (cdr found))))
 
-(defun org-annotate-live-get-marker-of-link (link markers-alist)
+(defun org-annotate-live-get-marker-of-link (link)
   "Get marker if link is registered."
-  (let ((found (rassoc link (symbol-value markers-alist))))
+  (let ((found (rassoc link (symbol-value org-annotate-live-markers-alist))))
     (if found (car found))))
 
 
