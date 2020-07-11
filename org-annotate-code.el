@@ -38,7 +38,7 @@
   :group 'org-annotate-code
   :type '(alist :key-type symbolp :value-type function))
 
-(defcustom org-annotate-code-info-default 'org-annotate-code-info-at-point-lineno
+(defcustom org-annotate-code-info-default 'org-annotate-word-info-at-point 
   "Default annotation parser. It is filename -> line number."
   :group 'org-annotate-code
   :type 'function)

@@ -95,7 +95,7 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 (defun org-annotate-live-create-register ()
   "Register for first time."
   (interactive)
-  ;; (setq-local org-annotate-live-markers nil)
+  (setq-local org-annotate-live-markers nil)
   (let* ((type "word")
 	(test (org-link-get-parameter type :followstrict))
 	valid stale)
@@ -128,7 +128,7 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 (defun org-annotate-live--add-link-at-marker (link marker-or-position)
   "Add LINK at MARKER-OR-POINT. A new marker is created."
   (setq marker (copy-marker marker-or-position t))
-  (set-alist org-annotate-live-markers marker link))
+  (set-alist 'org-annotate-live-markers marker link))
 
 (defun org-annotate-live--update-link-at-marker (link marker-or-position)
   "Update LINK at MARKER-OR-POINT when marker is registered."
