@@ -298,6 +298,10 @@ Useful properties are :type and :raw-link.
   (if (string-match "\\(?1:[[:alnum:]]*\\):.*" link)
   (match-string-no-properties 1 link)))
 
+(defun org-annotate-code-get-filename (link)
+  (if (string-match "\\(?1:[-[:alnum:]_\\./]*\\)::.*" link)
+      (expand-file-name (match-string-no-properties 1 link))))
+
 
 
 (provide 'org-annotate-code)
