@@ -1,5 +1,5 @@
 * Description
-~org-annotate-code~ allows you to annotate files so that annotations (comments) are stored in a separate annotation org-mode file. The annotations are in tree hierarchy. By default, the tree at first level is the filename  and at second the line number where the annotation is made. All this can be achieved with an ordinary org-capture, but ~org-annotate-code~ allows more customization of how the annotations are stored. 
+~org-annotate-code~ allows you to annotate files so that annotations (comments) are stored in a separate annotation org-mode file. The annotations are in tree hierarchy. By default, the tree at first level is the filename  and at second the line number and word where the annotation is made. All this can be achieved with an ordinary org-capture, but ~org-annotate-code~ allows more customization of how the annotations are stored. 
 
 Locally per buffer file you can change in which file the annotations are stored and if there is a top-level heading always inserted. How annotations are formed can also be decided per pajor mode. For example, ~org-annotate-python~ annotates python code definitions (functions, classes or variables). The headlines of these trees can be changed later on, because the annotation itself is identified by its ~CUSTOM_ID~. There is also the possibility to move subtrees and still find the same org-mode item if an annotation is retriggered.  In the annotation file, you can visit the annotated file or the annotated section by ~C-c C-o~ while on the heading of the annotation. 
 
@@ -15,7 +15,7 @@ The annotation can be made using a capture template with the function ~org-annot
 ("a" "Annotate" plain #'org-annotate-code-capture-finding-location "%?" :empty-lines-before 1)
 #+end_src
 
-One can customize ~org-annotate-code~ by always having a top-level heading, either globally or per file, by setting ~org-annotate-code-heading0~. Beyond this, typically the top-level heading is the filename. By default the next level is the line number, but one can use an arbitrary hierarchy per mode or locally, see the details.  One can also customize the annotation file locally by setting ~org-annotation-code-org-file~.
+One can customize ~org-annotate-code~ by always having a top-level heading, either globally or per file, by setting ~org-annotate-code-heading0~. Beyond this, typically the top-level heading is the filename. One can also customize the annotation file locally by setting ~org-annotation-code-org-file~.
 
 There are annotators that may be written for specific modes in separate elisp files. For instance, to annotate python files
 #+begin_src 
@@ -25,13 +25,13 @@ The capture mode will then make specific links for python. Under the hood, regis
 * Details
 The top-level heading is set by ~org-annotate-code-heading0~ and is ~nil~ by default. The annotation file is set by ~org-annotation-code-org-file~. How the hierarchy is created can be customized by setting ~org-annotate-code-info-override~. The above three can be buffer local. If the override annotator is not set, per mode annotators in ~org-annotate-code-info-alist~ are used with fallback the default in ~org-annotate-code-info-default~.
 
-Typically, the first level heading is the file name with id link an org-mode file link. There can be arbitrary subnodes defined. For example, the second level heading can be the symbol "word" at point and the id link a search for this symbol by using ~[[file:filename::word]]~.  By default, the second level is a line number, eg ~[[file:filename::no]]~. An annotation is defined as a list of nodes and each node is a plist with keys ~:id~ and ~:heading~ and possibly ~:properties~. An annotator function that defines annotations should return at point such a list. The alist ~org-annotate-code-info-alist~ associates major-modes to such functions. The override annotator and the default is also such a function. Note that the top-level heading is inserted after these annotators have done their work.
+Typically, the first level heading is the file name with id link an org-mode file link. There can be arbitrary subnodes defined. For example, the second level heading can be the symbol "word" at point and the id link a search for this symbol by using ~[[file:filename::word]]~.  An annotation is defined as a list of nodes and each node is a plist with keys ~:id~ and ~:heading~ and possibly ~:properties~. An annotator function that defines annotations should return at point such a list. The alist ~org-annotate-code-info-alist~ associates major-modes to such functions. The override annotator and the default is also such a function. Note that the top-level heading is inserted after these annotators have done their work.
 
 The custom id properties link back to the annotated section and conversely are used to create new org-mode items when the ids do not exist. Once created, the custom id links should not be changed but the headings can change at will. The whole tree can be moved and/or demoted somewhere else in the annotation file. If an annotation at the same place is triggered, there are two options. Either the moved bottom-level org-mode item is found by its id or a new strict hierarchy of items will be created as before the subtree was moved. To customize which of these two methods is used, see  ~org-annotate-code-search-annotation-method~.  The bottom-up search method is useful because once the original headings and hierachy is created by the annotation functions, later on a better placement of the structure might be decided. It is thus the default. The strict method is useful if one wants to preserve a strict hierarchy upon creation, but it might go against the general principal of unique custom ids in an org-mode file.
 
 * Annotators
-** Default
-The default creates a tree structure like ~file name -> line number~. 
+** org-annotate-line
+Creates a tree structure like ~file name -> line number~. 
 ** org-annotate-python
 The org-mode hierarchy when annotating on a variable definition might look like ~file name -> function definition -> local variable~ or ~filename -> global variable~.  
 
@@ -41,7 +41,14 @@ It is possible to use relative links using projectile. It is also possible to ma
 ** org-annotate-dired
 Allows to annotate the file at point in dired. The annotations will still be in ~org-annotate-code-org-file~ and under the top-level heading if set.
 ** org-annotate-word
-This creates a link like ~[[word:filename::lineno::word]]~ that searches for the word near a line number in a file. This annotator will not update the line numbers if the text is changes, whether by editing or when the file or package was not loaded (think git). I am currently looking at solving this. In the meantime checkout [[https://github.com/bastibe/annotate.el][annotation-mode]], another package, for live changing the line numbers as text is edited.
+This creates a link like ~[[word:filename::lineno::word]]~ that searches for the word near a line number in a file. 
+
+This annotator will keep track of line numbers changes if the text is changed while ~org-annotate-live-mode~ is loaded. It will change the org-file accordingly when:
+ - The file is saved
+ - The user calls ~org-annotate-live-sync-register~
+ - A new annotation might overlap with an existing annotate whose link is old.
+ - An existing annotation will be edited and its link is old.
+However, if you use the live mode, currently, link ids will be renamed to stale if the file changed while ~org-annotate-live-mode~ was not loaded. The live mode is still experimental. Ways to correct stale links will be added. You can also checkout [[https://github.com/bastibe/annotate.el][annotation-mode]], another package, for live changing the line numbers as text is edited.
 ** org-annotate-index
 Allows adding the file name, either the current buffer or the file pointed at in dired, in an ~index.org~ file in the /same/ directory as the file. This does not register an annotator with the ~org-annotate-code-info-alist~. One would add ~org-annotate-index-capture-finding-location~ in a sepratate capure template, as in
 #+begin_src 
@@ -61,4 +68,4 @@ This section was true at the time of writing (2020-06-24). I can amend or add up
 Only if the annotated file was changed when the file was not loaded (think of ~git pull~) or ~annotation-mode~ was not loaded when changes are made, then the annotation in ~annotation-mode~ are found with a nearby search. 
 
 * Ideas
-This package is work in progress. Currently thinking of highlights and making temporary lists of annotations per file. Also making the default a search for word near line number.
+This package is work in progress. Currently thinking of making the live mode correct stale links with git. 
