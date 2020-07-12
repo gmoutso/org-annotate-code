@@ -62,7 +62,18 @@
   (if search
       (org-link-make-string (concat "file:" filename "::" search))
       (org-link-make-string (concat "file:" filename))))
-  
+
+(defun org-annotate-code-add-filename-node (filename annotation)
+  "Add the FILENAME as top-level node to ANNOTATION."
+  (let* ((filename (expand-file-name filename))
+	 (id (org-annotate-code-make-file-link filename))
+	 (heading (file-name-nondirectory filename))
+	 filenode)
+    (setq filenode
+	(list :id id
+	      :heading heading))
+    (cons filenode annotation)))
+
 ;;; Info functions
 (defun org-annotate-code-info-at-point-lineno ()
   "Return an annotation filename -> linenumber. Annotations are list of node plists."

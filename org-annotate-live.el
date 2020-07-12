@@ -2,7 +2,7 @@
 ;; Copyright (C) 2020
 
 ;; Author: George Moutsopoulos <gmoutso@gmail.com>
-;; Version: 1.0
+;; Version: 1.1
 ;; Package-Requires: ((org-mode))
 ;; Keywords: annotate, capture, code, comments
 
@@ -16,6 +16,15 @@
 (defvar org-annotate-live-markers nil
   "Alist of type to alist of markers to links. Links are stored like org-store-link.")
 (make-variable-buffer-local 'org-annotate-live-markers)
+
+(defcustom org-annotate-live-use-hash nil
+  "Use hash to invalidate links in org-file."
+  :group 'org-annotate-word)
+(defcustom org-annotate-live-forgive-window nil
+  "Integer window of lines to correct and forgive links that are not exact. 
+This applies to a wrong hash that will be updated.
+Set to 0 means only in the line of the link's position."
+  :group 'org-annotate-word)
 
 ;; parsing org-file
 
@@ -206,14 +215,13 @@ The second stage changes the link in the org-file.
       (org-annotate-live--replace-org-id existinglink link))))
 
 (defun org-annotate-live-marker-and-link-out-of-sync (marker link)
-  (not (equal (line-number-at-pos marker) (org-annotate-word-get-lineno link))))
+  (not (equal marker (org-annotate-word-get-position link))))
 
 (defun org-annotate-live-register-link (marker link)
   "Add safely a new link."
   ;; (org-annotate-live-sync-register)  ;; also updates org
   (org-annotate-live-correct-register-before-new-marker-link marker link) ;; also updates org
   (org-annotate-live-add-or-update-link-at-marker link marker)) ; this does not update org
-
 
 (defun org-annotate-live-sync-register ()
   "Change markers and org-file links that are out of sync."
