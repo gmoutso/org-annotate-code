@@ -30,17 +30,19 @@ Typically, the first level heading is the file name with id link an org-mode fil
 The custom id properties link back to the annotated section and conversely are used to create new org-mode items when the ids do not exist. Once created, the custom id links should not be changed but the headings can change at will. The whole tree can be moved and/or demoted somewhere else in the annotation file. If an annotation at the same place is triggered, there are two options. Either the moved bottom-level org-mode item is found by its id or a new strict hierarchy of items will be created as before the subtree was moved. To customize which of these two methods is used, see  ~org-annotate-code-search-annotation-method~.  The bottom-up search method is useful because once the original headings and hierachy is created by the annotation functions, later on a better placement of the structure might be decided. It is thus the default. The strict method is useful if one wants to preserve a strict hierarchy upon creation, but it might go against the general principal of unique custom ids in an org-mode file.
 
 * Annotators
-** org-annotate-line
-Creates a tree structure like ~file name -> line number~. 
-** org-annotate-python
-The org-mode hierarchy when annotating on a variable definition might look like ~file name -> function definition -> local variable~ or ~filename -> global variable~.  
+** Line numbers
+Use ~org-annotate-code-info-at-point-lineno~. Creates a tree structure like ~file name -> line number~. 
+** python
+Use ~org-annotate-code-info-at-point-python~. A variable definition might look like ~file name -> function definition -> local variable~ or ~filename -> global variable~.  
 
 Links are possible by defining a new link type called pydef, eg ~[[pydef:filename.py::newfun.newsubfun.localvariable]]~. When creating an annotation, by default a selection list is presented to the user for what is to be annotated, eg ~newfun~, ~newfun.newsubfun~ or ~newfun.newsubfun.localvariable~. If the user chooses to annotate ~newfun.newsubfun~ then  the annotation will have hierarchy ~filename.py -> newfun -> newfun.newsubfun~. One can customize the levels and what is presented to be selected by changing ~org-annotate-python-squash-annotation-level~ and ~org-annotate-python-squash-candidates-level~, which are ~nil~ by default. 
 
 It is possible to use relative links using projectile. It is also possible to make the heading dotted, as in python modules.
-** org-annotate-dired
+** dired
+Use ~org-annotate-code-info-at-point-dired~.
 Allows to annotate the file at point in dired. The annotations will still be in ~org-annotate-code-org-file~ and under the top-level heading if set.
-** org-annotate-word
+** word
+Use ~org-annotate-code-info-at-point-word~.
 This creates a link like ~[[word:filename::lineno::word]]~ that searches for the word near a line number in a file. 
 
 This annotator will keep track of line numbers changes if the text is changed while ~org-annotate-live-mode~ is loaded. It will change the org-file accordingly when:
@@ -49,7 +51,8 @@ This annotator will keep track of line numbers changes if the text is changed wh
  - A new annotation might overlap with an existing annotate whose link is old.
  - An existing annotation will be edited and its link is old.
 However, if you use the live mode, currently, link ids will be renamed to stale if the file changed while ~org-annotate-live-mode~ was not loaded. The live mode is still experimental. Ways to correct stale links will be added. You can also checkout [[https://github.com/bastibe/annotate.el][annotation-mode]], another package, for live changing the line numbers as text is edited.
-** org-annotate-index
+** index
+Use ~org-annotate-code-info-at-point-index~. 
 Allows adding the file name, either the current buffer or the file pointed at in dired, in an ~index.org~ file in the /same/ directory as the file. This does not register an annotator with the ~org-annotate-code-info-alist~. One would add ~org-annotate-index-capture-finding-location~ in a sepratate capure template, as in
 #+begin_src 
 ("i" "Insert file to index" plain #'org-annotate-index-capture-finding-location "%?")
