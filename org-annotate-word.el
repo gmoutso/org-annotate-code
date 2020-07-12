@@ -27,7 +27,7 @@
 (defun org-annotate-word-store-link ()
   "Store a link."
   (let* ((filename (expand-file-name (buffer-file-name)))
-	 (word (org-annotate-word-get-word-at-point))
+	 (word (org-annotate-word-word-at-point))
 	 (lineno (line-number-at-pos))
 	 (description nil))
       (if word (org-link-store-props
@@ -47,31 +47,33 @@
 
 ;; parsing
 
-(defun org-annotate-word-get-word-at-point  ()
+(defun org-annotate-word-word-at-point  ()
   "Return word at point."
   (when (word-at-point)
     (substring-no-properties (word-at-point))))
 
-;; (defun org-annotate-word-get-word-nearest  ()
-;;   "Return word nearest to point."
-;;   (substring-no-properties
-;;    (cond ((word-at-point))
-;; 	 ((word-search-forward  ".*" nil t))
-;; 	 ((word-search-backward ".*" nil t)))))
-
 ;; follow
 
 (defun org-annotate-word-move-within-word ()
-  (beginning-of-thing 'word))
+  "Move at beginning of word."
+  (if (word-at-point) (beginning-of-thing 'word)))
+
+(defun org-annotate-word-position-word-at-point ()
+  "Get position of beginning of word if at word."
+  (when (word-at-point)
+    (save-excursion
+      (org-annotate-word-move-within-word)
+      (point))))
 
 (defun org-annotate-word-goto-word-choose (lineno word)
   "Choose WORD at LINENO.
 Return nil if not found."
   (org-annotate-word-goto-word lineno word)
   (let ((list-matching-lines-jump-to-current-line t))
-      (occur word)
-      (org-annotate-word-goto-word-strict (line-number-at-pos) word))
-  (if (word-at-point) (org-annotate-word-move-within-word)))
+    (occur word)
+    (org-annotate-word-goto-word-strict (line-number-at-pos) word)
+    (org-annotate-word-move-within-word)
+    (org-annotate-word-position-word-at-point)))
 
 (defun org-annotate-word-goto-word-strict (lineno word)
   "Goto first WORD at LINENO.
@@ -79,12 +81,12 @@ Return nil if not found."
   (let ((found
 	 (save-excursion 
 	   (goto-char (point-min))
-	   (forward-line lineno)
+	   (forward-line (- lineno 1))
 	   (search-forward word (point-at-eol) t))))
     (when found
       (goto-char found)
-      (beginning-of-thing 'word)
-      (point))))
+      (org-annotate-word-move-within-word)
+      (org-annotate-word-position-word-at-point))))
 
 (defun org-annotate-word-goto-word (lineno word &optional window)
   "Goto WORD near LINENO.
@@ -95,14 +97,14 @@ Return nil if not found."
     (unless found
       (setq find1 (save-excursion
 		     (goto-char (point-min))
-		     (forward-line lineno)
+		     (forward-line (- lineno 1))
 		     (when (search-forward word
 					 (when window (point-at-eol (+ 1 window)))
 					 t)
 			 (point))))
       (setq find2 (save-excursion
 		     (goto-char (point-min))
-		     (forward-line lineno)
+		     (forward-line (- lineno 1))
 		     (when (search-backward word
 					  (when window (point-at-bol (- 1 window)))
 					  t)
@@ -119,7 +121,9 @@ Return nil if not found."
 			   find2))))
     (when found
       (goto-char found)
-      (beginning-of-thing 'word))
+      (org-annotate-word-move-within-word)
+      (org-annotate-word-position-word-at-point)
+      )
     ))
 
 ;; folowing link
@@ -180,11 +184,19 @@ Return nil if not found."
 
 (defun org-annotate-word-info-at-point ()
   "Return a plist with word info at point."
-  (let* ((filename (buffer-file-name))
-	 (lineno (line-number-at-pos))
-	 (word (org-annotate-word-get-word-at-point)))
-    (if word
-	 (org-annotate-word-make-annotation-from-word filename lineno word))))
+  (let ((word (org-annotate-word-word-at-point)))
+    (when word
+      (let* ((type "word")
+	     (filename (buffer-file-name))
+	     (lineno (line-number-at-pos))
+	     (store (org-link-get-parameter type :store))
+	     (plist (funcall store))
+	     (rawlink (plist-get plist :link))
+	     (link (org-link-make-string (concat  type ":" rawlink ))))
+	(when (and (featurep 'org-annotate-live) org-annotate-live-mode)
+	  (org-annotate-live-register-link (org-annotate-word-position-word-at-point)
+					   link))
+	(org-annotate-word-make-annotation-from-word filename lineno word)))))
 
 (provide 'org-annotate-word)
 ;;; org-annotate-word.el ends here

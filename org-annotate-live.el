@@ -29,9 +29,11 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 		(org-element-parse-buffer 'headline)))))
 	(org-element-map tree 'headline
 	  (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
-				(if (and (equal type (org-annotate-code-get-link-type id))
-					 (equal this_file
-						(org-annotate-code-get-filename id)))
+				(if (and
+				     id
+				     (equal type (org-annotate-code-get-link-type id))
+				     (equal this_file
+					    (org-annotate-code-get-filename id)))
 				    headline))))))
 
 
@@ -43,7 +45,9 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 	 (org-element-map tree 'headline
 	   (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
 				 (save-excursion
-				   (if (not (funcall test id)) id)))))))
+				   (if (and
+					id
+					(not (funcall test id))) id)))))))
 
 (defun org-annotate-live-valid-from-search ()
   "Return invalid ids if strict search fails."
@@ -53,7 +57,9 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 	 (org-element-map tree 'headline
 	   (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
 				 (save-excursion
-				   (if (funcall test id) id)))))))
+				   (if (and
+					id
+					(funcall test id)) id)))))))
 
 (defun org-annotate-live-stale-from-hash ()
   "Return stale if hash not correct."
@@ -65,6 +71,7 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
       (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline))
 				(hash (org-element-property :HASH headline)))
 			    (if (and
+				 id
 				 ;; type must be word
 				 (equal type (org-annotate-code-get-link-type id))
 				 ;; file must be this_file
@@ -92,25 +99,29 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 
 ;; creating register
 
+(defun org-annotate-live-kill-register ()
+  (setq-local org-annotate-live-markers nil))
+
 (defun org-annotate-live-create-register ()
   "Register for first time."
   (interactive)
-  (setq-local org-annotate-live-markers nil)
-  (let* ((type "word")
-	(test (org-link-get-parameter type :followstrict))
-	valid stale)
-    ;; invalidate if there is a hash
-    (setq stale (org-annotate-live-stale-from-hash))
-    (mapcar 'org-annotate-live--make-stale-org-id stale)
-    ;; invalidate when stric search fails
-    (setq stale (org-annotate-live-stale-from-search))
-    (mapcar 'org-annotate-live--make-stale-org-id stale)
-    ;; add markers for valid
-    (setq valid (org-annotate-live-valid-from-search))
-    (save-excursion
-      (dolist (link valid)
-      (if (funcall test link)
-	  (org-annotate-live-add-or-update-link-at-marker link (point)))))))
+  (when org-annotate-live-mode
+    (org-annotate-live-kill-register)
+    (let* ((type "word")
+	   (test (org-link-get-parameter type :followstrict))
+	   valid stale)
+      ;; invalidate if there is a hash
+      (setq stale (org-annotate-live-stale-from-hash))
+      (mapcar 'org-annotate-live--make-stale-org-id stale)
+      ;; invalidate when stric search fails
+      (setq stale (org-annotate-live-stale-from-search))
+      (mapcar 'org-annotate-live--make-stale-org-id stale)
+      ;; add markers for valid
+      (setq valid (org-annotate-live-valid-from-search))
+      (save-excursion
+	(dolist (link valid)
+	  (if (funcall test link)
+	      (org-annotate-live-add-or-update-link-at-marker link (point))))))))
 
 ;; editting register
 
@@ -167,56 +178,56 @@ Return the cons of replacement."
 	(org-annotate-live--update-link-at-marker newlink marker-or-position))))
 
 (defun org-annotate-live-correct-register-before-new-marker-link (marker-or-position link)
-  "Update link at marker in registers and org-file.
+  "Correct before a link at marker is updated.
 
-
-Assume LINK is correct at MARKER-OR-POSITION. The register might be out of sync:
-1) the MARKER-OR-POSITION is registered to a different existing link:
-The existing link at MARKER-OR-POSITION should become LINK at MARKER-OR-POSITION.
+Assume provided LINK is correct at MARKER-OR-POSITION. 
+The register and org-file might be out of sync:
+1) the MARKER-OR-POSITION is registered to a different link:
+An existing link at MARKER-OR-POSITION should become LINK at MARKER-OR-POSITION.
+The org-file should change the old link. We do not update the register here!
 2) the LINK is registered an existing different marker:
 The link at the other marker should change.
-
-The first stage is to correct the register:
-1) Change the link at MARKER-OR-POSITION
-2) Change the link at the other marker
-The second stage changes the link in the org-file
-1) the link at MARKER-OR-POSITION change
-2) the link at other marker change
+The org-file should change the link to a new link at other marker.
+The first stage is to correct the register.
+The second stage changes the link in the org-file.
 "
   (let* ((marker (copy-marker marker-or-position t))
 	 (existinglink (org-annotate-live--get-link-of-marker marker-or-position))
 	 (existingmarker (org-annotate-live--get-marker-of-link link))
 	 correction)
-    (setq correction
-	  (cond ((and (equal marker existingmarker) (not (equal link existinglink))) ;; (1)
-		 ;; existinglink should be updated to link in register
-		 (org-annotate-live--update-link-at-marker link existingmarker)
-		 ;; the change in org-file
-		 (cons existinglink link))
-		((and (not (equal marker existingmarker)) (equal link existinglink)) ;; (2)
-		 ;; same link at other existingmarker is wrong in register
-		 (org-annotate-live--correct-link-at-marker existingmarker)
-		 ;; the change in org-file
-		 (cons link (org-annotate-live--get-link-of-marker existingmarker)))))
-    (if correction
-	(org-annotate-live--replace-org-id
-	 (car correction) (cdr correction)))))
+    ;; correct links same as LINK that is elsewhere
+    (when (and existingmarker (not (equal existingmarker marker)))
+      (org-annotate-live--correct-link-at-marker existingmarker)
+      ;; the change in org-file
+      (org-annotate-live--replace-org-id link (org-annotate-live--get-link-of-marker existingmarker)))
+    ;; correct link at marker that is wrong in org-file only
+    (when (and existinglink (not (equal link existinglink)))
+      ;; (org-annotate-live--update-link-at-marker link marker)
+      (org-annotate-live--replace-org-id existinglink link))))
 
 (defun org-annotate-live-marker-and-link-out-of-sync (marker link)
   (not (equal (line-number-at-pos marker) (org-annotate-word-get-lineno link))))
+
+(defun org-annotate-live-register-link (marker link)
+  "Add safely a new link."
+  ;; (org-annotate-live-sync-register)  ;; also updates org
+  (org-annotate-live-correct-register-before-new-marker-link marker link) ;; also updates org
+  (org-annotate-live-add-or-update-link-at-marker link marker)) ; this does not update org
+
 
 (defun org-annotate-live-sync-register ()
   "Change markers and org-file links that are out of sync."
   (interactive)
   (let ((forgotten (seq-filter (lambda (x) (org-annotate-live-marker-and-link-out-of-sync
 					   (car x) (cdr x)))
-			      org-annotate-live-markers)))
+			       org-annotate-live-markers)))
     (dolist (c forgotten)
       (let ((marker (car c))
 	    (oldlink (cdr c)))
 	(org-annotate-live--correct-link-at-marker marker)
 	(org-annotate-live--replace-org-id oldlink
-					   (org-annotate-live--get-link-of-marker marker))))))
+					   (org-annotate-live--get-link-of-marker marker))))
+    (if forgotten (message "Org-file synced"))))
 
 ;; live mode
 (define-minor-mode org-annotate-live-mode
@@ -241,6 +252,7 @@ The second stage changes the link in the org-file
 
 (defun org-annotate-live-shutdown ()
   (org-annotate-live-sync-register)
+  (setq-local org-annotate-live-markers nil)
   (remove-hook 'after-save-hook 'org-annotate-live-save-file t))
 
 (provide 'org-annotate-live)
