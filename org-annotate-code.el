@@ -38,7 +38,7 @@
   :group 'org-annotate-code
   :type '(alist :key-type symbolp :value-type function))
 
-(defcustom org-annotate-code-info-default 'org-annotate-word-info-at-point 
+(defcustom org-annotate-code-info-default 'org-annotate-code-info-at-point-lineno 
   "Default annotation parser. It is filename -> line number."
   :group 'org-annotate-code
   :type 'function)
@@ -315,7 +315,6 @@ Useful properties are :type and :raw-link.
 (defun org-annotate-code-get-filename (link)
   (if (string-match "\\(?1:[-[:alnum:]_\\./]*\\)::.*" link)
       (expand-file-name (match-string-no-properties 1 link))))
-
 
 
 (provide 'org-annotate-code)
