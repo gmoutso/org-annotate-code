@@ -1,3 +1,5 @@
+
+
 ;;; org-annotate-live.el --- Annotate code using org-capture
 ;; Copyright (C) 2020
 
@@ -18,8 +20,10 @@
 (make-variable-buffer-local 'org-annotate-live-markers)
 
 (defcustom org-annotate-live-use-hash nil
-  "Use hash to invalidate links in org-file."
+  "Use hash to invalidate links in org-file.
+Will also insert hash when file is saved."
   :group 'org-annotate-word)
+
 (defcustom org-annotate-live-forgive-window nil
   "Integer window of lines to correct and forgive links that are not exact. 
 This applies to a wrong hash that will be updated.
@@ -28,10 +32,10 @@ Set to 0 means only in the line of the link's position."
 
 ;; parsing org-file
 
-(defun org-annotate-live-get-org-tree (&optional tree)
-  "Return headline AST with id links of TYPE that point to the current file.
+;; org-element-map, org-entry-put (in org-element-map?), org-map-entries?, org-set-property
 
-if TREE is non nil, parse this tree. Else use the tree of the org file for current file."
+(defun org-annotate-live-get-org-tree (&optional tree)
+  "Return headline AST with id links of type that point to the current file."
   (let ((type "word")
 	(this_file (expand-file-name (buffer-file-name)))
 	(tree (or tree (with-current-buffer (find-file-noselect org-annotate-code-org-file)
@@ -46,55 +50,99 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
 				    headline))))))
 
 
-(defun org-annotate-live-stale-from-search ()
-  "Return invalid ids if strict search fails."
+(defun org-annotate-live-valid-from-search (&optional tree)
+  "Return valid ids with strict search."
   (let* ((type "word")
 	 (test (org-link-get-parameter type :followstrict))
-	 (tree (org-annotate-live-get-org-tree)))
+	 (tree (org-annotate-live-get-org-tree))
 	 (org-element-map tree 'headline
 	   (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
 				 (save-excursion
-				   (if (and
-					id
-					(not (funcall test id))) id)))))))
+				   (if (funcall test id) id))))))))
 
-(defun org-annotate-live-valid-from-search ()
-  "Return invalid ids if strict search fails."
+(defun org-annotate-live-stale-from-hash (&optional tree)
+  "Change to stale if hash not correct. Return changed ids."
   (let* ((type "word")
-	 (test (org-link-get-parameter type :followstrict))
-	 (tree (org-annotate-live-get-org-tree)))
-	 (org-element-map tree 'headline
-	   (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
-				 (save-excursion
-				   (if (and
-					id
-					(funcall test id)) id)))))))
-
-(defun org-annotate-live-stale-from-hash ()
-  "Return stale if hash not correct."
-  (let* ((type "word")
+	 (tree (or nil (org-annotate-live-get-org-tree)))
 	 (this_file (expand-file-name (buffer-file-name)))
 	 (this_hash (secure-hash 'md5 (current-buffer)))
+	 ids)
+     (org-element-map tree 'headline
+		 (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline))
+					   (hash (org-element-property :HASH headline)))
+				       (when (and
+					      hash
+					      ;; and must not be this_hash
+					      (not (equal this_hash hash)))
+					 id))))))
+
+(defun org-annotate-live-invalidate-from-hash (&optional tree)
+  "Change to stale if hash not correct. Return changed ids."
+  (let ((ids (org-annotate-live-invalidate-from-hash tree)))
+     (mapcar #'org-annotate-live--make-stale-org-id ids)
+     ids))
+
+(defun org-annotate-live-stale-from-search (&optional tree)
+  "Change to stale if search fails. Return changed ids."
+  (let* ((type "word")
+      	 (test (org-link-get-parameter type :followstrict))
+	 (tree (or tree (org-annotate-live-get-org-tree)))
 	 (tree (org-annotate-live-get-org-tree)))
     (org-element-map tree 'headline
-      (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline))
-				(hash (org-element-property :HASH headline)))
-			    (if (and
-				 id
-				 ;; type must be word
-				 (equal type (org-annotate-code-get-link-type id))
-				 ;; file must be this_file
-				 (equal this_file	(org-annotate-code-get-filename id))
-				 ;; hash must be set
-				 hash
-				 ;; and must not be this_hash
-				 (not (equal this_hash hash)))
-				id))))))
+		(lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline)))
+				      (save-excursion
+					(when (not (funcall test id))
+					  id)))))))
 
-;; modify org file
+(defun org-annotate-live-invalidate-from-search (&optional tree)
+  "Change to stale if search fails. Return changed ids."
+  (let* ((stale (org-annotate-live-stale-from-search tree)))
+    (mapcar #'org-annotate-live--make-stale-org-id stale)
+     stale))
+
+(defun org-annotate-live-valid-with-window (window &optional tree)
+  "Return alist of valid link changes to id and hash when search is succesful.
+This returns an alist of (oldlink . ((CUSTOM)))"
+  (let* ((this_hash (secure-hash 'md5 (current-buffer)))
+	 (type "word")
+	 (test (org-link-get-parameter type :follow))
+	 (tree (org-annotate-live-get-org-tree))
+	 corrections)
+	 (org-element-map tree 'headline
+	   (lambda (headline)  (let ((id (org-element-property :CUSTOM_ID headline))
+				     (hash (org-element-property :HASH headline)))
+				 (save-excursion
+				   (let ((found (funcall test id window))
+					 (correctposition (point))
+					 (existingposition (org-annotate-word-get-position id))
+					 update newid)
+				     (when found
+				       (when (or (not (equal correctposition existingposition))
+						 (and hash (not (equal hash this_hash))))
+					 (when (not (equal correctposition existingposition))
+					   (string-match (regexp-quote (concat "::" (number-to-string existingposition) "::")) id)
+					   (setq newid (replace-match (regexp-quote (concat "::" (number-to-string correctposition) "::")) nil t id))
+					   (setq update (plist-put update :CUSTOM_ID newid)))
+					 (when (and hash (not (equal hash this_hash)))
+					   (setq update (plist-put update :HASH this_hash)))
+					 (setq corrections (put-alist id update corrections))
+					 id)))))))
+	 corrections))
+
+(defun org-annotate-live-validate-with-window (window &optional tree)
+  "Change links and hash keys if search is within window valid. Return succesful ids."
+  (let ((corrections (org-annotate-live-valid-with-window window tree)))
+	(with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
+	  (dolist (a corrections)
+	    (let ((oldid (car a))
+		  (newid (plist-get (cdr a) :CUSTOM_ID))
+		  (newhash (plist-get (cdr a) :HASH)))
+	      (when (org-annotate-code-search-id oldid)
+		(if newid (org-set-property "CUSTOM_ID" newid))
+		(if newhash (org-set-property "HASH" newhash))))))))
 
 (defun org-annotate-live--replace-org-id (oldid newid)
-  "Modify ids in orgfile."
+  "Modify id in orgfile."
   (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
     (if (org-annotate-code-search-id oldid)
 	(org-set-property "CUSTOM_ID" newid))))
@@ -104,7 +152,14 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
   (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
     (when (org-annotate-code-search-id id)
       (org-delete-property "CUSTOM_ID")
-      (org-set-property "STALE" id))))
+      (org-set-property "STALE_ID" id))))
+
+(defun org-annotate-live--update-hash (id)
+  "Modify hash property"
+  (let ((hash (secure-hash 'md5 (current-buffer))))
+  (with-current-buffer (find-file-noselect org-annotate-code-org-file)  ; see also insert-file-contents
+    (when (org-annotate-code-search-id id)
+      (org-set-property "HASH" hash)))))
 
 ;; creating register
 
@@ -117,18 +172,18 @@ if TREE is non nil, parse this tree. Else use the tree of the org file for curre
   (when org-annotate-live-mode
     (org-annotate-live-kill-register)
     (let* ((type "word")
-	   (test (org-link-get-parameter type :followstrict))
-	   valid stale)
-      ;; invalidate if there is a hash
-      (setq stale (org-annotate-live-stale-from-hash))
-      (mapcar 'org-annotate-live--make-stale-org-id stale)
-      ;; invalidate when stric search fails
-      (setq stale (org-annotate-live-stale-from-search))
-      (mapcar 'org-annotate-live--make-stale-org-id stale)
+	   (test (org-link-get-parameter type :followstrict)))
+      ;; correct links and hash
+      (if org-annotate-live-forgive-window
+	  (org-annotate-live-validate-with-window org-annotate-live-forgive-window))
+      ;; invalidate with hash
+      (if org-annotate-live-use-hash
+	  (org-annotate-live-invalidate-from-hash))
+      ;; invalidate with search
+      (org-annotate-live-invalidate-from-search)
       ;; add markers for valid
-      (setq valid (org-annotate-live-valid-from-search))
       (save-excursion
-	(dolist (link valid)
+	(dolist (link (org-annotate-live-valid-from-search))
 	  (if (funcall test link)
 	      (org-annotate-live-add-or-update-link-at-marker link (point))))))))
 
@@ -186,47 +241,23 @@ Return the cons of replacement."
 	;; update link in register
 	(org-annotate-live--update-link-at-marker newlink marker-or-position))))
 
-(defun org-annotate-live-correct-register-before-new-marker-link (marker-or-position link)
-  "Correct before a link at marker is updated.
-
-Assume provided LINK is correct at MARKER-OR-POSITION. 
-The register and org-file might be out of sync:
-1) the MARKER-OR-POSITION is registered to a different link:
-An existing link at MARKER-OR-POSITION should become LINK at MARKER-OR-POSITION.
-The org-file should change the old link. We do not update the register here!
-2) the LINK is registered an existing different marker:
-The link at the other marker should change.
-The org-file should change the link to a new link at other marker.
-The first stage is to correct the register.
-The second stage changes the link in the org-file.
-"
-  (let* ((marker (copy-marker marker-or-position t))
-	 (existinglink (org-annotate-live--get-link-of-marker marker-or-position))
-	 (existingmarker (org-annotate-live--get-marker-of-link link))
-	 correction)
-    ;; correct links same as LINK that is elsewhere
-    (when (and existingmarker (not (equal existingmarker marker)))
-      (org-annotate-live--correct-link-at-marker existingmarker)
-      ;; the change in org-file
-      (org-annotate-live--replace-org-id link (org-annotate-live--get-link-of-marker existingmarker)))
-    ;; correct link at marker that is wrong in org-file only
-    (when (and existinglink (not (equal link existinglink)))
-      ;; (org-annotate-live--update-link-at-marker link marker)
-      (org-annotate-live--replace-org-id existinglink link))))
 
 (defun org-annotate-live-marker-and-link-out-of-sync (marker link)
   (not (equal marker (org-annotate-word-get-position link))))
 
 (defun org-annotate-live-register-link (marker link)
   "Add safely a new link."
-  ;; (org-annotate-live-sync-register)  ;; also updates org
-  (org-annotate-live-correct-register-before-new-marker-link marker link) ;; also updates org
+  (org-annotate-live-sync-register)  ;; also updates org
+  ;; (org-annotate-live-correct-register-before-new-marker-link marker link) ;; also updates org
   (org-annotate-live-add-or-update-link-at-marker link marker)) ; this does not update org
 
 (defun org-annotate-live-sync-register ()
   "Change markers and org-file links that are out of sync."
   (interactive)
-  (let ((forgotten (seq-filter (lambda (x) (org-annotate-live-marker-and-link-out-of-sync
+  (let ((deleted (seq-filter (lambda (x) (org-annotate-live-marker-and-link-out-of-sync
+					   (car x) (cdr x)))
+			       org-annotate-live-markers))
+	(forgotten (seq-filter (lambda (x) (org-annotate-live-marker-and-link-out-of-sync
 					   (car x) (cdr x)))
 			       org-annotate-live-markers)))
     (dolist (c forgotten)
@@ -244,7 +275,7 @@ The second stage changes the link in the org-file.
   :lighter "lv"
   :keymap nil
   :group 'org-annotate-live
-  (org-annotate-live-initialize-maybe))
+  :after-init (org-annotate-live-initialize-maybe))
 
 (defun org-annotate-live-initialize-maybe ()
   (if org-annotate-live-mode
@@ -256,10 +287,12 @@ The second stage changes the link in the org-file.
   (add-hook 'after-save-hook 'org-annotate-live-save-file t t))
 
 (defun org-annotate-live-save-file ()
-  (org-annotate-live-sync-register))
+  (org-annotate-live-sync-register)
+  (when org-annotate-live-use-hash
+    (mapcar #'org-annotate-live--update-hash (mapcar 'cdr org-annotate-live-markers))))
 
 (defun org-annotate-live-shutdown ()
-  (org-annotate-live-sync-register)
+  (org-annotate-live-save-file)
   (setq-local org-annotate-live-markers nil)
   (remove-hook 'after-save-hook 'org-annotate-live-save-file t))
 

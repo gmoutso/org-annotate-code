@@ -21,7 +21,6 @@
 (org-link-set-parameters "word"
                          :follow 'org-annotate-word-open-link
 			 :followstrict 'org-annotate-word-goto-link
-			 ;; :followchoose 'org-annotate-word-search-choose
                          :export 'orgorg-annotate-word-export
                          :store 'org-annotate-word-store-link)
 
@@ -175,9 +174,9 @@ Return nil if not found."
 
 (defun org-annotate-word-add-filename-node (filename annotation)
   "Add the FILENAME as top-level node to ANNOTATION."
-  (if (and (featurep org-annotate-python) (derived-mode-p 'pythin-mode))
-      (org-annotate-python-add-filename-node)
-    (org-annotate-code-add-filename-node)))
+  (if (and (featurep 'org-annotate-python) (derived-mode-p 'python-mode))
+      (org-annotate-python-add-filename-node filename annotation)
+    (org-annotate-code-add-filename-node filename annotation)))
 
 ;; annotation
 
