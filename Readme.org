@@ -83,13 +83,13 @@ To use, load
 #+begin_src 
 (require 'org-annotate-word)
 #+end_src
-This creates a link like ~[[word:filename::position::word]]~ that searches for the word near a line number in a file. It will not register with any modes by default.
+This creates a link like ~[[word:filename::position::word]]~ that searches for the word near a line number in a file. It will not register with any modes by default. 
 
-This annotator will keep track of line numbers changes if the text is changed while ~org-annotate-live-mode~ is loaded. It will change the org-file accordingly each time
+As it stands, the links will quickly become stale as the file is editted. This annotator will keep track of word position changes if the text is changed while ~org-annotate-live-mode~ minor mode is loaded. It will change the org-file accordingly each time:
  - The file is saved
  - The user calls ~org-annotate-live-sync-register~
  - A new annotation is made
-However, if you use the live mode, currently, link ids will be renamed to stale if the file changed while ~org-annotate-live-mode~ was not loaded. The live mode is still experimental.
+However, if you use the live mode, link ids will be renamed to stale if the file changed while ~org-annotate-live-mode~ was not loaded. The live mode is still experimental. There is currently the option to use file hashes to invalidate links to stale or a strict search for the word at the link's position. Future word might feature using git.
 
 You can also checkout [[https://github.com/bastibe/annotate.el][annotation-mode]], a maturer project, for live changing the line numbers as text is edited.
 ** index
