@@ -17,13 +17,13 @@ The annotation can be made using a capture template with the function ~org-annot
 #+begin_src 
 ("a" "Annotate" plain #'org-annotate-code-capture-finding-location "%?")
 #+end_src
-Without further configuration, org-capture will use the default annotator.
+Without further configuration, this template will use the default annotator.
 
 There are annotators for specific modes. For instance, to annotate python files
 #+begin_src 
 (require 'org-annotate-python)
 #+end_src
-This will associate all python files with this annotator when you use the generic capture function above. The capture mode will then make specific links for python, where the first level is the filename in dotted form and the second and deeper levels are nested headings with python function/class/variable names. Registering for a major mode is done by modifying the alist ~org-annotate-code-info-alist~, eg
+This will associate all python files with the python annotator when using the generic capture template. The python annotation will make specific links, eg to the python function that is annotated. Registering for a major mode is done by modifying the alist ~org-annotate-code-info-alist~, eg
 #+begin_src 
 (add-to-list 'org-annotate-code-info-alist (cons 'python-mode 'org-annotate-python-info-at-point))
 #+end_src
@@ -33,44 +33,57 @@ If you want to use word annotations by default then
 #+begin_src 
 (setq org-annotate-code-info-default 'org-annotate-word-info-at-point)
 #+end_src
-will make annotations that point to the word at the position in the file. This annotator defines a new link of type "word". Functions such as ~org-annotate-python-info-at-point~ or ~org-annotate-word-info-at-point~ are at the core of what is an annotator. You can also override the default annotator in ~org-annotate-code-info-default~ with the local variable ~org-annotate-code-info-override~. For this, you will need to know the annotator's function name, eg in a given buffer
+will make annotations that point to the annotated word at (or near) a position in the file.
+
+Functions such as ~org-annotate-python-info-at-point~ or ~org-annotate-word-info-at-point~ are at the core of what is an annotator. You can also override the default annotator with the local variable ~org-annotate-code-info-override~. For this, you will need to know the annotator's function name, eg in a given buffer
 #+begin_src 
 (setq org-annotate-code-info-override 'org-annotate-word-info-at-point)
 #+end_src
 this becomes a local buffer variable. Setting dir-locals.el can make use of different annotators per file.
 
-Alternatively, you can remove python from the alist above and use a separate special template for python in the ~org-capture~templates~, eg
+Finally, you can remove python from the alist above and use a separate special template for python in the ~org-capture~templates~, eg
 #+begin_src 
 ("p" "Python" plain #'org-annotate-python-capture-finding-location "%?")
 #+end_src
-For this, you will need to know the name of the capture finding location. For each annotator there is  one annotator function that can be used with the generic capure finding function and one special capture finding location (which simply wraps the generic function with the override variable).
+For this, you will need to know the name of the capture finding location. For each annotator there is  one annotator function like ~org-annotate-python-info-at-point~ and one special capture finding function like ~org-annotate-python-capture-finding-location~. The first is used to modify the generic template, the latter is used in a special org-capture template.
 
 One can insert a top-level heading, either globally or per file, by setting ~org-annotate-code-heading0~. Beyond this level, typically the top-level heading is the filename, but ultimately this depends on the annotator used. One can also customize the annotation file locally by setting ~org-annotation-code-org-file~. So for instance, each project can save annotations under a different top-level heading in the same file, or in separate files per project, or any combination defined in dir-locals.el.
 
 An annotator that annotates the word at point is defined in ~org-annotate-word~. This creates links that point to a word at a position in a file, and by default clicking on the link takes one to the nearest word at that position. If the minor mode ~org-annotate-live-mode~ is loaded while the annotated file is edited, it will change the ~CUSTOM_ID~ so that the positions are corrected. This is work in progress.
 
-There can be arbitrary nodes of the annotation tree. The annotator functions return a list of nodes and each node is a plist with keys ~:id~ and ~:heading~ and possibly ~:properties~. The top-level heading is inserted after these annotators have done their work. 
+There can be arbitrary nodes of the annotation tree, depending on the annotator used. The annotator functions return a list of nodes and each node is a plist with keys ~:id~ and ~:heading~ and possibly ~:properties~. The top-level heading is inserted after these annotators have done their work. It is then possible to extend ~org-annotate-code~ by writing such functions.
 
-Once the annotation is created, the custom id links should not be changed but the headings can change at will. The whole tree can be moved and/or demoted somewhere else in the annotation file. If an annotation at the same place is triggered, there are two options to search for the annotation tree: 
+Once the annotation is created, the custom id links should not be changed but the headings can change at will. The whole tree can be moved and/or demoted somewhere else in the annotation file. If an annotation at the same place is triggered, there are two options to search for the annotation tree in the org file: 
  - a bottom-top search that places importance on the last custom id to exist
  - a top-bottom search that places importance on the whole hierarchy of custom ids to exist
-Either the moved entry is found by its id or a new hierarchy of items will be created where the search fails. To customize which of these two methods is used, see  ~org-annotate-code-search-annotation-method~.  
+Either the moved entry is found by its id or a new hierarchy of items will be created. To customize which of these two methods is used, see  ~org-annotate-code-search-annotation-method~.  
 
 * Annotators
 ** Line numbers
-Creates a tree structure like ~file name -> line number~. This can be achieved out of the box with org-mode.
+Creates a tree structure like ~file name -> line number~. This can be achieved out of the box with org-mode. It is loaded by default and is the default annotator.
 ** python
-An annotation might look like the nested headings ~file name -> function definition -> local variable~ or ~filename -> global variable~.  Links are possible by defining a new link type called pydef, eg ~[[pydef:filename.py::newfun.newsubfun.localvariable]]~. 
+#+begin_src 
+(require 'org-annotate-python)
+#+end_src
+
+An annotation might look like the nested headings ~file name -> function definition -> local variable~ or ~filename -> global variable~.  Links are possible by defining a new link type, eg ~[[pydef:filename.py::newfun.newsubfun.localvariable]]~. Clicking on the link will try to find the definition in nested python blocks.
 
 When creating an annotation, the user can select what is to be annotated, eg ~newfun~, ~newfun.newsubfun~ or ~newfun.newsubfun.localvariable~. If the user chooses to annotate ~newfun.newsubfun~ then  the annotation will have hierarchy ~filename.py -> newfun -> newfun.newsubfun~. One can customize these settings by changing ~org-annotate-python-squash-annotation-level~ and ~org-annotate-python-squash-candidates-level~. 
 
-It is possible to use relative path headings using projectile. Filename headings are dotted by default as in python modules.
+The first level heading is a filename. It is possible to use relative paths using projectile. Filename headings are dotted by default as in python modules, but this can be changed.
 
 ** dired
-Use ~org-annotate-code-info-at-point-dired~.
-Allows to annotate the file at point in dired. The annotations will still be in ~org-annotate-code-org-file~ and under the top-level heading if set.
+An annotator function is register to dired buffers when loading
+#+begin_src 
+(require 'org-annotate-dired)
+#+end_src
+It allows to annotate the file at point in dired. The annotations will still be in ~org-annotate-code-org-file~ and under the top-level heading if set.
 ** word
-This creates a link like ~[[word:filename::position::word]]~ that searches for the word near a line number in a file. 
+To use, load
+#+begin_src 
+(require 'org-annotate-word)
+#+end_src
+This creates a link like ~[[word:filename::position::word]]~ that searches for the word near a line number in a file. It will not register with any modes by default.
 
 This annotator will keep track of line numbers changes if the text is changed while ~org-annotate-live-mode~ is loaded. It will change the org-file accordingly each time
  - The file is saved
@@ -80,11 +93,18 @@ However, if you use the live mode, currently, link ids will be renamed to stale 
 
 You can also checkout [[https://github.com/bastibe/annotate.el][annotation-mode]], a maturer project, for live changing the line numbers as text is edited.
 ** index
-Use ~org-annotate-code-info-at-point-index~. 
-Allows adding the file name, either the current buffer or the file pointed at in dired, in an ~index.org~ file in the /same/ directory as the file. That is ~org-annotate-code-org-file~ or the top-level heading is not used here. This does not register an annotator with the ~org-annotate-code-info-alist~. One would add ~org-annotate-index-capture-finding-location~ in a sepratate capure template, as in
+To start using
+#+begin_src 
+(require 'org-annotate-index)
+#+end_src
+Allows adding the file name, either the current buffer or the file pointed at in dired, in an ~index.org~ file in the /same/ directory as the file. That is ~org-annotate-code-org-file~ or the top-level heading is not used here. 
+
+The annotator function is ~org-annotate-code-info-at-point-index~ but it shouldn't be used. 
+This does not register an annotator with the ~org-annotate-code-info-alist~. One would add ~org-annotate-index-capture-finding-location~ in a sepratate capure template, as in
 #+begin_src 
 ("i" "Insert file to index" plain #'org-annotate-index-capture-finding-location "%?")
 #+end_src
+You can then start building an index with descriptions of your files in each directory.
 * Similar Packages
 If you know of similar packages, please let me know
  - ~org-annotate-file~ is similar, but ~org-annotate-code~ is presently configurable
