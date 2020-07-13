@@ -14,6 +14,7 @@
 
 ;;; Code:
 (require 'org-annotate-code)
+(require 'org-annotate-word)
 
 (defvar org-annotate-live-markers nil
   "Alist of type to alist of markers to links. Links are stored like org-store-link.")
@@ -22,6 +23,10 @@
 (defcustom org-annotate-live-use-hash nil
   "Use hash to invalidate links in org-file.
 Will also insert hash when file is saved."
+  :group 'org-annotate-word)
+
+(defcustom org-annotate-live-always-save-hash t
+  "Always save hash."
   :group 'org-annotate-word)
 
 (defcustom org-annotate-live-forgive-window nil
@@ -269,6 +274,7 @@ Return the cons of replacement."
     (if forgotten (message "Org-file synced"))))
 
 ;; live mode
+;;;###autoload
 (define-minor-mode org-annotate-live-mode
   "Toggle live mode."
   :init-value nil
@@ -293,6 +299,7 @@ Return the cons of replacement."
 
 (defun org-annotate-live-shutdown ()
   (org-annotate-live-save-file)
+  (mapcar (lambda (m) (set-marker m nil)) org-annotate-live-markers)
   (setq-local org-annotate-live-markers nil)
   (remove-hook 'after-save-hook 'org-annotate-live-save-file t))
 

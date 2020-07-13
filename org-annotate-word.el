@@ -202,6 +202,10 @@ Return nil if not found."
 					   link))
 	(org-annotate-word-make-annotation-from-word filename position word)))))
 
+(defun org-annotate-word-capture-finding-location ()
+  (let ((org-annotate-code-info-override 'org-annotate-word-info-at-point))
+    (org-annotate-code-capture-finding-location)))
+
 (provide 'org-annotate-word)
 ;;; org-annotate-word.el ends here
 

@@ -217,14 +217,18 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
     (if filename (find-file filename))
     (org-annotate-python-goto-dotted dotted)))
 
-(defun org-annotate-code-info-at-point-python ()
+(defun org-annotate-python-info-at-point ()
   "Return a plist with python info at point."
   (let* ((filename (buffer-file-name))
 	 (dotted (org-annotate-python-get-pydef-name))
 	 (selection (org-annotate-python-pydef-select-candidate dotted org-annotate-python-squash-candidates-level)))
     (org-annotate-python-make-annotation-from-pydef filename selection org-annotate-python-squash-annotation-level)))
 
-(add-to-list 'org-annotate-code-info-alist (cons 'python-mode 'org-annotate-code-info-at-point-python))
+(add-to-list 'org-annotate-code-info-alist (cons 'python-mode 'org-annotate-python-info-at-point))
+
+(defun org-annotate-python-capture-finding-location ()
+  (let ((org-annotate-code-info-override 'org-annotate-python-info-at-point))
+    (org-annotate-code-capture-finding-location)))
 
 (provide 'org-annotate-python)
 ;;; org-annotate-python.el ends here

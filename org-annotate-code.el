@@ -255,11 +255,14 @@ Alternative is to use `org-annotate-code-search-annotation'."
 (defun org-annotate-code-capture-finding-location ()
   "To be used in capture templates."
   (let*  ((org-file org-annotate-code-org-file)
-	 (the-buffer (org-capture-target-buffer org-file))
-	 (annotation (funcall (org-annotate-code-choose-info-function)))
-	 (annotation (org-annotate-code-add-heading0 annotation)))
+	  (the-buffer (org-capture-target-buffer org-file))
+	  (info-function (org-annotate-code-choose-info-function))
+	  (annotation (funcall info-function))
+	  (annotation1 (org-annotate-code-add-heading0 annotation)))
     (set-buffer the-buffer)
-    (org-annotate-code-search-and-create-levels annotation)
+    (if annotation 
+	(org-annotate-code-search-and-create-levels annotation1)
+      (user-error (format "%s: Not at valid point." info-function)))
     ))
 
 
