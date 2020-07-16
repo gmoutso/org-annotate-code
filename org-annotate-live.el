@@ -14,7 +14,6 @@
 
 ;;; Code:
 (require 'org-annotate-code)
-(require 'org-annotate-word)
 
 (defvar org-annotate-live-markers nil
   "Alist of type to alist of markers to links. Links are stored like org-store-link.")
