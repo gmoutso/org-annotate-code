@@ -146,7 +146,7 @@ If nil then all. Eg. with level 1, (a b c) becomes (a c)"
 	(setq heading (file-relative-name heading (projectile-project-root directory))))
     (if org-annotate-python-add-filename-node-remove-directory
 	(setq heading (file-name-nondirectory heading)))
-    (if org-annotate-python-add-filename-node-make-dotted
+    (if org-annotate-python-add-filename-node-make-folders-dotted
 	(setq heading (replace-regexp-in-string "/" "." heading)))
     (setq filenode
 	(list :id id
