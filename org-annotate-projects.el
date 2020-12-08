@@ -68,10 +68,17 @@
 
 (defun org-annotate-projects-create ()
   (interactive)
-  (let ((org-annotate-code-org-file (org-annotate-projects-))
+  (let ((org-annotate-code-org-file (org-annotate-projects-get-org-file))
 	(org-annotate-code-add-heading0 nil)
 	(org-annotate-code-info-override 'org-annotate-projects-info-at-point))
     (org-annotate-code-create)))
+
+(defun org-annotate-projects-visit-org-file ()
+  (interactive)
+  (let ((org-annotate-code-org-file (org-annotate-projects-get-org-file))
+	(org-annotate-code-add-heading0 nil)
+	(org-annotate-code-info-override 'org-annotate-projects-info-at-point))
+  (org-annotate-code-visit-org-file)))
 
 (provide 'org-annotate-projects)
 ;;; org-annotate-projects.el ends here
