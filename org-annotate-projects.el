@@ -20,7 +20,7 @@
 (defcustom org-annotate-projects-org-file "projects.org" "Org file for projects")
 
 (defun org-annotate-projects-get-project-root ()
-  (or org-annotate-projects-root (projectile-project-root)))
+  (expand-file-name (or org-annotate-projects-root (projectile-project-root))))
 
 (defun org-annotate-projects-get-org-file ()
   (concat (org-annotate-projects-get-project-root) "/" org-annotate-projects-org-file))
@@ -35,8 +35,8 @@
 			     (buffer-file-name))
 			    (t
 			     (buffer-file-name))))))
-    (expand-file-name (read-directory-name "Add folder to projects: "  this-dir)
-		      (org-annotate-projects-get-project-root))))
+    (directory-file-name (file-relative-name (read-directory-name "Add folder to projects: "  this-dir)
+		      (org-annotate-projects-get-project-root)))))
 
 (defun org-annotate-code-cumulate-mapconcat (sequence seperator)
   "On the SEQUENCE of strings (a b c) creates (a a/b a/b/c)."
@@ -54,7 +54,7 @@
   (let ((wspfolder (org-annotate-projects-get-folder)))
       (mapcar (lambda (node) (list :id (org-link-make-string (concat "file:" node))
 			       :heading (car (last (split-string node "/")))
-			       :properties (list (cons "DIR" (org-link-make-string (concat "file:" node))))))
+			       :properties (list (cons "DIR"  node))))
 	  (org-annotate-projects-cumulate-mapconcat (split-string wspfolder "/")))))
 
 

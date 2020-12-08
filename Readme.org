@@ -105,6 +105,17 @@ This does not register an annotator with the ~org-annotate-code-info-alist~. One
 ("i" "Insert file to index" plain #'org-annotate-index-capture-finding-location "%?")
 #+end_src
 You can then start building an index with descriptions of your files in each directory.
+** projects
+To start using
+#+begin_src 
+(require 'org-annotate-index)
+#+end_src
+This will add hierarchical nodes based on the folders and subfolders relative to a projectile root. Besides a custom id that is used for identifying the nodes, a DIR property is also set so that you can use ~org-attach~. To use it with  ~org-capture~ add this to the templates
+#+begin_src 
+("f" "Insert file to index" plain #'org-annotate-projects-capture-finding-location "%?")
+#+end_src
+Alternatively, you can use ~org-annotate-projects-create~. The folders are saved by default in a single ~projects.org~ in the root folder, which you can visit with ~org-annotate-projects-visit-org-file~.
+
 * Similar Packages
 If you know of similar packages, please let me know
  - ~org-annotate-file~ is similar, but ~org-annotate-code~ is presently configurable
