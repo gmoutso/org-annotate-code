@@ -16,7 +16,7 @@
 (require 'ol)
 (org-link-set-parameters "pydef"
                          :follow 'org-annotate-python-pydef-search
-                         :export #'orgorg-annotate-python-pydef-export
+                         :export #'org-annotate-python-pydef-export
                          :store #'org-annotate-python-pydef-store-link)
 
 (defconst org-annotate-code-level-regex
@@ -35,7 +35,7 @@
   "\\(?:\\(?:def\\|class\\) *%s\\)(\\|\\(?:%s *=\\)"
   "Class, def or variable definition regex.")
 (defconst org-annotate-code-link-regex
-  "\\(?:\\(?1:[[:alnum:]_\\./]*\\)::\\)?\\(?2:[[:alnum:]_\\.]*\\)"  ; [^<>\\:;,\\?\"\\*|/]
+  "^\\(?1:[[:alnum:]\\./_-]*\\)::\\(?2:[[:alnum:]_\\.]*\\)$"  ; [^<>\\:;,\\?\"\\*|/]
   ;; "\\(?:\\(?1:[[^<>:;,\\?\"\\*|/]]*\\)::\\)?\\(?2:[[:alnum:]_\\.]*\\)"  ;  [[:alnum:]_\\./]*
   "Link regex eg dir/filename.py::a.b.c")
 (defcustom org-annotate-python-squash-candidates-level nil

@@ -38,6 +38,11 @@
   :group 'org-annotate-code
   :type '(alist :key-type symbolp :value-type function))
 
+(defcustom org-annotate-code-info-blacklist nil
+  "Custom annotation parsers per mode. An alist of mode to function."
+  :group 'org-annotate-code
+  :type 'list)
+
 (defcustom org-annotate-code-info-default 'org-annotate-code-info-at-point-lineno 
   "Default annotation parser. It is filename -> line number."
   :group 'org-annotate-code
@@ -97,6 +102,8 @@
 (defun org-annotate-code-choose-info-function ()
   "Return approprate function according to mode, default or override. See 'org-annotate-code-info-alist."
   (cond (org-annotate-code-info-override)
+	((member major-mode org-annotate-code-info-blacklist)
+	 (lambda () nil))
 	 ((cl-some 'org-annotate-code-predicate-mode-cons org-annotate-code-info-alist))
 	 (org-annotate-code-info-default)))
 
@@ -262,7 +269,7 @@ Alternative is to use `org-annotate-code-search-annotation'."
     (set-buffer the-buffer)
     (if annotation 
 	(org-annotate-code-search-and-create-levels annotation1)
-      (user-error (format "%s: Not at valid point." info-function)))
+      (user-error (format "%s: No annotation possible." info-function)))
     ))
 
 

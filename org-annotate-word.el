@@ -24,8 +24,14 @@
                          :export 'orgorg-annotate-word-export
                          :store 'org-annotate-word-store-link)
 
+(defcustom org-annotate-word-mode-blacklist '(org-mode pdf-view-mode)
+  "Mode blacklist."
+  :group 'org-annotate-code
+  :type 'list)
+
 (defun org-annotate-word-store-link ()
   "Store a link."
+  (unless (member major-mode org-annotate-word-mode-blacklist)
   (let* ((filename (expand-file-name (buffer-file-name)))
 	 (word (org-annotate-word-word-at-point))
 	 (position (org-annotate-word-position-beginning))
@@ -35,7 +41,7 @@
 		:link (format "%s::%s::%s" filename position word)
 		:position position
 		:file filename
-		:word word))))
+		:word word)))))
 
 (defun org-annotate-word-export (link description format)
   "Export LINK with DESCRIPTION into FORMAT."
