@@ -167,7 +167,8 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
   (when (memq major-mode '(python-mode))
     ;; This is a man page, we do make this link.
     (let* ((filename (buffer-file-name))
-	   (name (org-annotate-python-pydef-select-candidate))
+	   (dotted (org-annotate-python-get-pydef-name))
+	   (name (org-annotate-python-pydef-select-candidate dotted))
            (description nil))
       (unless nofile
 	(setq name (concat filename "::" name)))
