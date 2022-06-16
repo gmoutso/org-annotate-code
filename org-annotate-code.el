@@ -63,10 +63,14 @@
 (defun org-annotate-code-add-heading0 (annotation)
   (if org-annotate-code-heading0 (cons (list :heading org-annotate-code-heading0) annotation) annotation))
 
+(defun org-annotate-code-wrap-id (id)
+  "Wrap ID with brackets or not."
+  (org-link-make-string id))
+
 (defun org-annotate-code-make-file-link (filename &optional search)
-  (if search
-      (org-link-make-string (concat "file:" filename "::" search))
-      (org-link-make-string (concat "file:" filename))))
+  (org-annotate-code-wrap-id (if search
+       (concat "file:" filename "::" search)
+       (concat "file:" filename))))
 
 (defun org-annotate-code-add-filename-node (filename annotation)
   "Add the FILENAME as top-level node to ANNOTATION."
@@ -326,4 +330,3 @@ Useful properties are :type and :raw-link.
 
 (provide 'org-annotate-code)
 ;;; org-annotate-code.el ends here
-
