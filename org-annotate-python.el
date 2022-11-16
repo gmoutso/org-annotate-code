@@ -162,13 +162,13 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
 	 (annotation (org-annotate-python-add-filename-node filename dottedannotation)))
     (org-annotate-python-squash-list-keep-and-last annotation (when squash (1+ squash))))) ; here squash=0 means keeping only filename.
 
-(defun org-annotate-python-pydef-store-link (&optional nofile)
+(defun org-annotate-python-pydef-store-link (&optional nofile ask)
   "Store a link to a man page."
   (when (memq major-mode '(python-mode))
     ;; This is a man page, we do make this link.
     (let* ((filename (buffer-file-name))
 	   (dotted (org-annotate-python-get-pydef-name))
-	   (name (org-annotate-python-pydef-select-candidate dotted))
+	   (name (if ask (org-annotate-python-pydef-select-candidate dotted) dotted))
            (description nil))
       (unless nofile
 	(setq name (concat filename "::" name)))
@@ -218,12 +218,18 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
     (if filename (find-file filename))
     (org-annotate-python-goto-dotted dotted)))
 
-(defun org-annotate-python-info-at-point ()
+(defun org-annotate-python-info-at-point (&optional ask)
   "Return a plist with python info at point."
+  (interactive "P")
   (let* ((filename (buffer-file-name))
 	 (dotted (org-annotate-python-get-pydef-name))
-	 (selection (org-annotate-python-pydef-select-candidate dotted org-annotate-python-squash-candidates-level)))
+	 (selection (if ask
+			(org-annotate-python-pydef-select-candidate
+			 dotted
+			 org-annotate-python-squash-candidates-level)
+		      dotted)))
     (org-annotate-python-make-annotation-from-pydef filename selection org-annotate-python-squash-annotation-level)))
+
 
 (add-to-list 'org-annotate-code-info-alist (cons 'python-mode 'org-annotate-python-info-at-point))
 

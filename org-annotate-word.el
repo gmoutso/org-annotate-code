@@ -24,7 +24,7 @@
                          :export 'orgorg-annotate-word-export
                          :store 'org-annotate-word-store-link)
 
-(defcustom org-annotate-word-mode-blacklist '(org-mode pdf-view-mode)
+(defcustom org-annotate-word-mode-blacklist '(org-mode pdf-view-mode python-mode dired-mode)
   "Mode blacklist."
   :group 'org-annotate-code
   :type 'list)

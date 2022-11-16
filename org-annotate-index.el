@@ -29,7 +29,6 @@ If nil then none. If true (but not a string) the use `org-annotate-code-heading0
 Supersedes choice in `org-annotate-code-heading0'."
   :group 'org-annotate-code)
 
-
 (defun org-annotate-index-get-filename ()
   "Return filename at point with no directory." 
   (file-name-nondirectory
@@ -37,6 +36,8 @@ Supersedes choice in `org-annotate-code-heading0'."
 	  (dired-get-filename nil t))
 	 ((buffer-file-name)
 	  (buffer-file-name))
+	 ((null (buffer-file-name))
+	  (user-error "Current buffer is not associated with a file."))
 	 (t
 	  (buffer-file-name)))))
 
