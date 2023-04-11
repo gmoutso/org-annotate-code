@@ -74,8 +74,8 @@ possibly under a heading0."
   (let ((beg (progn (python-nav-beginning-of-statement) (point)))
 	(end (progn (python-nav-end-of-statement) (point))))
     (goto-char beg)
-    (search-forward-regexp org-annotate-code-variable-regex end t)
-    (match-string-no-properties 1))))
+    (if (search-forward-regexp org-annotate-code-variable-regex end t)
+    (match-string-no-properties 1)))))
 
 (defun org-annotate-python-get-pydef-name ()
   "Return function+variable dotted name in list."
