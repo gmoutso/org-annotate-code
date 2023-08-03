@@ -54,7 +54,7 @@
 			    ))
 	 (pydef-with-module (concat module "::" pydef-no-module))
 	 (pydef (if no-module pydef-no-module (if absolute-path
-						  (concat project-root "/" pydef-with-module)
+						  (concat project-root pydef-with-module)
 						pydef-with-module))))
     pydef
     ))
@@ -109,7 +109,7 @@
     
 (defun org-link-pydef-follow (link)
   (let* ((splitlink (org-link-pydef-split link))
-	 (part1 (concat (replace-regexp-in-string "\\." "/" (car splitlink))
+	 (part1 (concat (string-replace "." "/" (car splitlink))
 			".py"))
 	 (part2 (cdr splitlink))
 	 (project-root (org-link-pydef-project-root))
