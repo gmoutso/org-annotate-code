@@ -19,8 +19,22 @@
                          :export #'org-link-pydef-export
                          :store #'org-link-pydef-store)
 
-(defun org-link-pydef-get-pydef (&optional with-variable no-module)
-  (let* ((filename (gm/get-relative-pyroot-filename))
+(defun org-link-pydef-relative-filename (&optional absolute-path)
+  "Get filename relative to root. If in dired, return current line, else return buffer file."
+  (let* ((pyroot (expand-file-name
+		  (or (file-name-concat (vc-root-dir) "..")
+		      (flycheck-python-find-project-root 'checker_))))
+	 (filename
+	  (cond ((derived-mode-p 'dired-mode)
+		 (dired-get-filename nil t))
+		((buffer-file-name))
+		((null (buffer-file-name))
+		 (user-error "Current buffer is not associated with a file."))
+		)))
+    (if absolute-path filename (file-relative-name filename pyroot))))
+
+(defun org-link-pydef-get-pydef (&optional with-variable no-module absolute-path)
+  (let* ((filename (org-link-pydef-relative-filename absolute-path))
 	 (dotted-filename (string-replace "/" "." filename))
 	 (module (replace-regexp-in-string "\\.py$" "" dotted-filename))
 	 (module (replace-regexp-in-string "^.*python\\.ev\\." "ev." module))
@@ -38,10 +52,10 @@
     pydef
     ))
 
-(defun org-link-pydef-store (&optional with-variable without-file)
+(defun org-link-pydef-store (&optional with-variable without-file relative-path)
   "Store a link to a man page."
   (when (memq major-mode '(python-mode))
-    (let* ((link (org-link-pydef-get-pydef with-variable without-file))
+    (let* ((link (org-link-pydef-get-pydef with-variable without-file (not relative-path)))
 	   (description nil))
       (org-link-store-props
        :type "pydef"
