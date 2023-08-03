@@ -115,7 +115,6 @@
 	 (project-root (org-link-pydef-project-root))
 	 (filename part1)
 	 (dotted part2))
-    (message "hey %s %s %s %s" part1 part2 project-root filename)
     (if filename (find-file filename))
     (goto-char (org-link-pydef-get-dotted-point dotted))))
 
