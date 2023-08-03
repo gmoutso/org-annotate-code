@@ -42,7 +42,7 @@
   (let* ((relative-filename (org-link-pydef-relative-filename))
 	 (project-root (org-link-pydef-project-root))
 	 (module (string-replace "/" "." relative-filename))
-	 (module (string-replace ".py$" "" module))
+	 (module (replace-regexp-in-string "\\.py$" "" module))
 	 (funname (python-info-current-defun))
 	 (varname (save-excursion (python-nav-beginning-of-statement)
 				  (python-info-current-symbol)))
