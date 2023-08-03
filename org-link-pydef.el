@@ -19,11 +19,15 @@
                          :export #'org-link-pydef-export
                          :store #'org-link-pydef-store)
 
+(defun org-link-pydef-project-root ()
+       (expand-file-name
+		  (or (file-name-concat (vc-root-dir) "..")
+		      (flycheck-python-find-project-root 'checker_)))
+       )
+
 (defun org-link-pydef-relative-filename (&optional absolute-path)
   "Get filename relative to root. If in dired, return current line, else return buffer file."
-  (let* ((pyroot (expand-file-name
-		  (or (file-name-concat (vc-root-dir) "..")
-		      (flycheck-python-find-project-root 'checker_))))
+  (let* ((pyroot (org-link-pydef-project-root))
 	 (filename
 	  (cond ((derived-mode-p 'dired-mode)
 		 (dired-get-filename nil t))
@@ -37,7 +41,7 @@
   (let* ((filename (org-link-pydef-relative-filename absolute-path))
 	 (dotted-filename (string-replace "/" "." filename))
 	 (module (replace-regexp-in-string "\\.py$" "" dotted-filename))
-	 (module (replace-regexp-in-string "^.*python\\.ev\\." "ev." module))
+	 (module (replace-regexp-in-string "^\\." "" module))
 	 (funname (python-info-current-defun))
 	 (varname (save-excursion (python-nav-beginning-of-statement)
 				  (python-info-current-symbol)))
@@ -52,10 +56,10 @@
     pydef
     ))
 
-(defun org-link-pydef-store (&optional with-variable without-file relative-path)
+(defun org-link-pydef-store (&optional with-variable without-file)
   "Store a link to a man page."
   (when (memq major-mode '(python-mode))
-    (let* ((link (org-link-pydef-get-pydef with-variable without-file (not relative-path)))
+    (let* ((link (org-link-pydef-get-pydef with-variable without-file))
 	   (description nil))
       (org-link-store-props
        :type "pydef"
@@ -100,7 +104,8 @@
     
 (defun org-link-pydef-follow (link)
   (let* ((splitlink (org-link-pydef-split link))
-	 (filename (car splitlink))
+	 (project-root (org-link-pydef-project-root))
+	 (filename (expand-file-name (car splitlink) project-root))
 	 (dotted (cdr splitlink)))
     (if filename (find-file filename))
     (goto (org-link-pydef-get-dotted-point dotted))))
