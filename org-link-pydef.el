@@ -20,10 +20,11 @@
                          :store #'org-link-pydef-store)
 
 (defun org-link-pydef-project-root ()
+  "Use one of `flycheck-python-project-files' or git to find root"
        (expand-file-name
-		  (or (file-name-concat (vc-root-dir) "..")
-		      (flycheck-python-find-project-root 'checker_)))
-       )
+	(or
+	 (flycheck-python-find-project-root 'checker_)
+	 (vc-root-dir))))
 
 (defun org-link-pydef-relative-filename ()
   "Get filename relative to root. If in dired, return current line, else return buffer file."
