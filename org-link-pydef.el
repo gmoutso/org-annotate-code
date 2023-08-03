@@ -25,7 +25,7 @@
 		      (flycheck-python-find-project-root 'checker_)))
        )
 
-(defun org-link-pydef-relative-filename (&optional absolute-path)
+(defun org-link-pydef-relative-filename ()
   "Get filename relative to root. If in dired, return current line, else return buffer file."
   (let* ((pyroot (org-link-pydef-project-root))
 	 (filename
@@ -35,13 +35,13 @@
 		((null (buffer-file-name))
 		 (user-error "Current buffer is not associated with a file."))
 		)))
-    (if absolute-path filename (file-relative-name filename pyroot))))
+    (file-relative-name filename pyroot)))
 
 (defun org-link-pydef-get-pydef (&optional with-variable no-module absolute-path)
-  (let* ((filename (org-link-pydef-relative-filename absolute-path))
-	 (dotted-filename (string-replace "/" "." filename))
-	 (module (replace-regexp-in-string "\\.py$" "" dotted-filename))
-	 (module (replace-regexp-in-string "^\\." "" module))
+  (let* ((relative-filename (org-link-pydef-relative-filename))
+	 (project-root (org-link-pydef-project-root))
+	 (module (string-replace "/" "." relative-filename))
+	 (module (string-replace ".py$" "" module))
 	 (funname (python-info-current-defun))
 	 (varname (save-excursion (python-nav-beginning-of-statement)
 				  (python-info-current-symbol)))
@@ -52,18 +52,20 @@
 			    (or funname varname)
 			    ))
 	 (pydef-with-module (concat module "::" pydef-no-module))
-	 (pydef (if no-module pydef-no-module pydef-with-module)))
+	 (pydef (if no-module pydef-no-module (if absolute-path
+						  (concat project-root "/" pydef-with-module)
+						pydef-with-module))))
     pydef
     ))
 
-(defun org-link-pydef-store (&optional with-variable without-file)
+(defun org-link-pydef-store (&optional with-variable)
   "Store a link to a man page."
   (when (memq major-mode '(python-mode))
-    (let* ((link (org-link-pydef-get-pydef with-variable without-file))
+    (let* ((link (org-link-pydef-get-pydef with-variable nil t))
 	   (description nil))
       (org-link-store-props
        :type "pydef"
-       :link link
+       :link (concat "pydef:" link)
        :description description))))
 
 (defun org-link-pydef-export (link)
@@ -91,23 +93,29 @@
 	   (beg (point-min))
 	   (end (point-max)))
       (dolist (name first-names)
-	(goto beg)
+	(goto-char beg)
 	(search-forward-regexp
-	 (format "\\(?:def\\|class\\) *%s\\)(" name) end)
-	(save-excursion (setq beg (python-nav-beginning-of-defun)))
-	(save-excursion (setq end (python-nav-end-of-defun))))
-      (goto beg)
+	 (format "\\(?:def\\|class\\) *%s(" name) end)
+	(save-excursion (python-nav-beginning-of-defun)
+			(setq beg (point)))
+	(save-excursion (python-nav-end-of-defun)
+			(setq end (point))))
+      (goto-char beg)
       (search-forward-regexp
-       (format "\\(?:\\(?:def\\|class\\) *%s\\)(\\|\\(?:%s *=\\)" last-name) end)
+       (format "\\(?:\\(?:def\\|class\\) *%s\\)(\\|\\(?:%s *=\\)" last-name last-name) end)
       (python-nav-beginning-of-statement)
       (point))))
     
 (defun org-link-pydef-follow (link)
   (let* ((splitlink (org-link-pydef-split link))
+	 (part1 (concat (replace-regexp-in-string "\\." "/" (car splitlink))
+			".py"))
+	 (part2 (cdr splitlink))
 	 (project-root (org-link-pydef-project-root))
-	 (filename (expand-file-name (car splitlink) project-root))
-	 (dotted (cdr splitlink)))
+	 (filename part1)
+	 (dotted part2))
+    (message "hey %s %s %s %s" part1 part2 project-root filename)
     (if filename (find-file filename))
-    (goto (org-link-pydef-get-dotted-point dotted))))
+    (goto-char (org-link-pydef-get-dotted-point dotted))))
 
 (provide 'org-link-pydef)
