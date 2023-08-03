@@ -14,10 +14,7 @@
 ;;; Code:
 (require 'org-annotate-code)
 (require 'ol)
-(org-link-set-parameters "pydef"
-                         :follow 'org-annotate-python-pydef-search
-                         :export #'org-annotate-python-pydef-export
-                         :store #'org-annotate-python-pydef-store-link)
+(require 'org-link-pydef)
 
 (defconst org-annotate-code-level-regex
   "^\\(?: {%d}\\)"
@@ -77,13 +74,7 @@ possibly under a heading0."
     (if (search-forward-regexp org-annotate-code-variable-regex end t)
     (match-string-no-properties 1)))))
 
-(defun org-annotate-python-get-pydef-name ()
-  "Return function+variable dotted name in list."
-  (let ((funname (org-annotate-python-get-defun-name))
-	(varname (org-annotate-python-get-variable-name)))
-    (cond ((not funname) varname)
-	  ((not varname) funname)
-	  ((concat funname "." varname)))))
+
 
 (defun org-annotate-python-squash-list-to-level (listnames level)
   "Squash candidates in LISTNAMES up to LEVEL.
@@ -162,31 +153,8 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
 	 (annotation (org-annotate-python-add-filename-node filename dottedannotation)))
     (org-annotate-python-squash-list-keep-and-last annotation (when squash (1+ squash))))) ; here squash=0 means keeping only filename.
 
-(defun org-annotate-python-pydef-store-link (&optional nofile ask)
-  "Store a link to a man page."
-  (when (memq major-mode '(python-mode))
-    ;; This is a man page, we do make this link.
-    (let* ((filename (buffer-file-name))
-	   (dotted (org-annotate-python-get-pydef-name))
-	   (name (if ask (org-annotate-python-pydef-select-candidate dotted) dotted))
-           (description nil))
-      (unless nofile
-	(setq name (concat filename "::" name)))
-      (org-link-store-props
-       :type "pydef"
-       :link name
-       :description description))))
 
-(defun org-annotate-python-pydef-export (link description format)
-  "Export LINK with DESCRIPTION into FORMAT."
-  (let ((path link)
-        (desc (or description link)))
-    (pcase format
-      ;; (`html (format "%s" path))
-      ;; (`latex (format "\\href{%s}{%s}" path desc))
-      ;; (`texinfo (format "@uref{%s,%s}" path desc))
-      ;; (`ascii (format "%s (%s)" desc path))
-      (_ (if description (format "%s (%s)" desc path) path)))))
+
 
 (defun org-annotate-python-make-search-string (name)
   (format org-annotate-code-def-regex-name-format name name))
@@ -211,18 +179,11 @@ Optional squash for final annotation, if nil keep all, if zero keeps only filena
       (goto-char beg))
     (goto-char last)))
 
-(defun org-annotate-python-pydef-search (link)
-  (let* ((splitlink (org-annotate-python-pydef-split-filename-searchname link))
-	 (filename (car splitlink))
-	 (dotted (cdr splitlink)))
-    (if filename (find-file filename))
-    (org-annotate-python-goto-dotted dotted)))
-
 (defun org-annotate-python-info-at-point (&optional ask)
   "Return a plist with python info at point."
   (interactive "P")
   (let* ((filename (buffer-file-name))
-	 (dotted (org-annotate-python-get-pydef-name))
+	 (dotted (org-link-pydef-get-pydef t t))
 	 (selection (if ask
 			(org-annotate-python-pydef-select-candidate
 			 dotted
