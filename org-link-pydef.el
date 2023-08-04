@@ -63,7 +63,8 @@
   "Store a link to a man page."
   (when (memq major-mode '(python-mode))
     (let* ((link (org-link-pydef-get-pydef with-variable nil t))
-	   (description nil))
+	   (description (if (string-match ".*::\\(.*\\)" link)
+			    (match-string-no-properties 1 link))))
       (org-link-store-props
        :type "pydef"
        :link (concat "pydef:" link)
